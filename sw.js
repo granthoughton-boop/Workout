@@ -1,7 +1,9 @@
 // Cache-first shell so the app opens instantly and works without signal in the gym.
-const CACHE = 'workout-v1';
+const CACHE = 'workout-v2';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './icon.svg',
+  './icons/icon-192.png', './icons/icon-512.png',
+  './icons/maskable-512.png', './icons/apple-touch-icon.png',
   './css/app.css',
   './js/app.js', './js/store.js', './js/ui.js',
   './js/data/exercises.js', './js/data/seed.js',

@@ -4,19 +4,54 @@ A mobile-first PWA for logging lifts, tracking bodyweight, and keeping weekly
 volume on target per muscle group. No build step, no server, no accounts —
 open `index.html` and everything runs from `localStorage`.
 
-## Running it on your phone
+## Installing it on your phone
 
-The app must be served over HTTP(S) for the service worker to install:
+The one hard requirement is **HTTPS** (or `localhost`). Service workers refuse
+to register on a plain `http://192.168.x.x` LAN address, and without a service
+worker there is no offline support and Android will only make a bookmark
+shortcut instead of installing the app.
+
+### GitHub Pages (recommended)
+
+The repo is already a valid site root, so there is nothing to build:
+
+1. **Settings → Pages** on the GitHub repo.
+2. **Source: Deploy from a branch**, pick this branch, folder `/ (root)`, Save.
+3. Wait for the deploy, then open `https://<user>.github.io/Workout/` on your
+   phone.
+
+Then:
+
+- **iOS Safari** — Share → *Add to Home Screen*. (Must be Safari; Chrome on iOS
+  cannot install web apps.)
+- **Android Chrome** — ⋮ → *Install app* / *Add to Home screen*.
+
+It launches full-screen with no browser chrome and runs offline afterwards.
+
+Note that anything served from Pages is public, including the workout history
+baked into `js/data/seed.js`. Use a private host if that matters to you.
+
+### Testing on your machine
 
 ```sh
-python3 -m http.server 8000        # from this directory
+npm start                  # python3 -m http.server 8000
 ```
 
-Then on your phone (same Wi-Fi) open `http://<your-computer-ip>:8000` and use
-**Add to Home Screen**. It launches full-screen and works offline.
+`http://localhost:8000` is treated as a secure origin, so the service worker
+and install prompt both work there — but only on that machine, not from your
+phone over the LAN.
 
-To have it permanently, push this repo and enable GitHub Pages on the branch —
-the app is fully static, so the repo root is the site root.
+## Regenerating the icons
+
+`icon.svg` is the source; the PNGs in `icons/` are generated from it:
+
+```sh
+npm i && node tools/gen_icons.mjs
+```
+
+They are not optional — iOS ignores an SVG `apple-touch-icon` and falls back to
+a screenshot of the page, and Android wants a raster icon of at least 192px
+before it will offer to install.
 
 ## Screens
 
@@ -73,6 +108,7 @@ lives on one device only — there is no sync.
 
 ```
 index.html            app shell
+icons/                generated PNG home-screen icons
 manifest.webmanifest  PWA manifest
 sw.js                 cache-first service worker
 css/app.css
@@ -82,7 +118,9 @@ js/ui.js              escaping/formatting helpers, delegated click binding
 js/data/exercises.js  muscle groups, targets, exercise→muscle fractions
 js/data/seed.js       generated workout history
 js/views/*.js         one module per screen: view() + mount()
-tools/gen_seed.py     CSV → seed.js
+tools/gen_seed.py     CSV -> seed.js
+tools/gen_icons.mjs   icon.svg -> icons/*.png
+tools/build_singlefile.mjs  bundle everything into one HTML file
 ```
 
 Views return HTML strings and bind behaviour through `[data-act]` delegation.
