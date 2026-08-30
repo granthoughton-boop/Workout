@@ -10,7 +10,7 @@ const listeners = new Set();
 function blank() {
   return {
     version: 1,
-    seeded: false,
+    seededIds: null,       // ids of seed workouts already offered (null = never)
     workouts: [],          // finished workouts
     weights: [],           // { date: 'YYYY-MM-DD', kg }
     active: null,          // in-progress workout, or null
@@ -31,11 +31,33 @@ function load() {
   } catch {
     s = blank();
   }
-  s = { ...blank(), ...s };
-  if (!s.seeded) {
-    s.workouts = SEED_WORKOUTS.slice();
-    s.seeded = true;
+  return applySeed({ ...blank(), ...s });
+}
+
+// The bundled history is re-issued whenever a fresh Hevy export is generated,
+// so seeding can't be a one-shot flag: an install that already ran would never
+// see the new workouts. Seed ids are derived from start time and stay stable
+// across exports, so tracking the ids already offered means a new export adds
+// only what's genuinely new, and anything deleted stays deleted.
+function applySeed(s) {
+  if (!Array.isArray(s.seededIds)) {
+    // Pre-tracking install. Treat every seed workout up to the newest one
+    // already stored as offered, so this doesn't resurrect deleted workouts.
+    const newest = s.workouts.reduce((max, w) => (w.start > max ? w.start : max), '');
+    s.seededIds = SEED_WORKOUTS.filter(w => w.start <= newest).map(w => w.id);
   }
+
+  const offered = new Set(s.seededIds);
+  const starts = new Set(s.workouts.map(w => w.start));
+  let added = 0;
+  for (const w of SEED_WORKOUTS) {
+    if (offered.has(w.id)) continue;
+    s.seededIds.push(w.id);
+    if (starts.has(w.start)) continue; // already logged by hand in the app
+    s.workouts.push(w);
+    added++;
+  }
+  if (added) s.workouts.sort((a, b) => a.start.localeCompare(b.start));
   return s;
 }
 
@@ -69,7 +91,8 @@ export function updateQuiet(fn) {
 }
 
 export function replaceState(next) {
-  state = { ...blank(), ...next, seeded: true };
+  // A backup restored from another device may predate the current export.
+  state = applySeed({ ...blank(), ...next });
   persist();
   listeners.forEach(l => l());
 }

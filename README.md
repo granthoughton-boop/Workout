@@ -95,10 +95,19 @@ is a live number rather than something that resets to zero every Monday.
 
 ## Data
 
-Seeded from a Hevy CSV export: 26 workouts, 492 sets, 29 Jan – 19 Aug 2026.
-`tools/gen_seed.py` regenerates `js/data/seed.js` from a CSV; **Settings →
-Import Hevy CSV** does the same thing at runtime and skips workouts already
-present (matched on start time).
+Seeded from `data/hevy-export.csv`: 27 workouts, 513 sets, 29 Jan – 30 Aug 2026.
+
+To take in a newer export, drop it over `data/hevy-export.csv` and run:
+
+```sh
+python3 tools/gen_seed.py
+```
+
+Workout ids are derived from the start time, so re-exporting keeps existing ids
+stable. The app records which seed workouts it has already offered, so an
+install that already has the old history picks up only the genuinely new
+workouts — and anything you deleted stays deleted. **Settings → Import Hevy
+CSV** does the same job at runtime without regenerating the file.
 
 Everything is stored in `localStorage` under a single `workout.v1` key, so
 **Settings → Export JSON** is a complete backup and Import restores it. Data
@@ -109,6 +118,7 @@ lives on one device only — there is no sync.
 ```
 index.html            app shell
 icons/                generated PNG home-screen icons
+data/hevy-export.csv  source export for the seeded history
 manifest.webmanifest  PWA manifest
 sw.js                 cache-first service worker
 css/app.css
