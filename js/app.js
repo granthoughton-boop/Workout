@@ -56,7 +56,7 @@ window.addEventListener('app:render', render);
 store.subscribe(render);
 render();
 
-if ('serviceWorker' in navigator) {
+if (!window.SINGLE_FILE_BUILD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });

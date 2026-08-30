@@ -113,14 +113,7 @@ export function mount(root, rerender) {
         s.customMuscles[n] = next;
       });
     },
-    export: () => {
-      const blob = new Blob([JSON.stringify(store.get(), null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `workout-backup-${store.todayKey()}.json`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    },
+    export: el => exportBackup(el),
     import: () => { mode = 'json'; file.click(); },
     'import-csv': () => { mode = 'csv'; file.click(); },
     reset: () => {
@@ -130,6 +123,36 @@ export function mount(root, rerender) {
       }
     },
   });
+}
+
+// Served from a plain web server an anchor download works; inside a sandboxed
+// host viewer it silently does nothing, so hand the file over through the host
+// when it offers a way to.
+async function exportBackup(btn) {
+  const filename = `workout-backup-${store.todayKey()}.json`;
+  const json = JSON.stringify(store.get(), null, 2);
+  const label = btn.textContent;
+  const say = t => { btn.textContent = t; setTimeout(() => { btn.textContent = label; }, 2200); };
+
+  const host = typeof claude !== 'undefined' && claude.use
+    ? await claude.use('downloads').catch(() => null)
+    : null;
+
+  if (host) {
+    try {
+      await host.save({ filename, data: json });
+      say('Saved');
+    } catch (err) {
+      say(err && err.code === 'declined' ? 'Export cancelled' : 'Export unavailable here');
+    }
+    return;
+  }
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 function bumpTarget(id, d) {

@@ -1,0 +1,12 @@
+{
+  "name": "workout",
+  "private": true,
+  "description": "Mobile PWA for set logging, bodyweight and weekly muscle volume.",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "build:single": "node tools/build_singlefile.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

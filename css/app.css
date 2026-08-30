@@ -242,3 +242,16 @@ col.c-tick { width: 50px; }
 button.pill { padding: 9px 12px; min-height: 34px; }
 .topbar h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar .sub { overflow: hidden; text-overflow: ellipsis; }
+
+/* Phone-first app viewed on a desktop screen: hold it in a centred column
+   instead of stretching a bottom tab bar across 1400px. */
+@media (min-width: 700px) {
+  body { background: #0a0a0b; }
+  #app {
+    max-width: 430px; margin: 0 auto; min-height: 100vh;
+    background: var(--bg); border-inline: 1px solid var(--line);
+  }
+  nav.tabs { left: 50%; transform: translateX(-50%); width: 430px; border-inline: 1px solid var(--line); }
+  .rest-bar { left: 50%; transform: translateX(-50%); width: 430px; }
+  .sheet { max-width: 430px; left: 50%; transform: translateX(-50%); border-inline: 1px solid var(--line); }
+}
