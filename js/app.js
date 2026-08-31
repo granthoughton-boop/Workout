@@ -3,14 +3,14 @@ import { raw, html } from './ui.js';
 import * as home from './views/home.js';
 import * as log from './views/log.js';
 import * as muscles from './views/muscles.js';
-import * as history from './views/history.js';
+import * as historyView from './views/history.js';
 import * as settings from './views/settings.js';
 
 const ROUTES = {
   '/home': { view: home, tab: '/home' },
   '/log': { view: log, tab: '/log' },
   '/muscles': { view: muscles, tab: '/muscles' },
-  '/history': { view: history, tab: '/history' },
+  '/history': { view: historyView, tab: '/history' },
   '/settings': { view: settings, tab: '/settings' },
 };
 
@@ -30,6 +30,10 @@ function path() {
   const p = location.hash.replace(/^#/, '') || '/home';
   return ROUTES[p] ? p : '/home';
 }
+
+// Land on an explicit #/home rather than a bare URL, so every screen the user
+// visits is its own history entry and the back gesture walks them in order.
+if (!location.hash) history.replaceState(null, '', '#/home');
 
 function render() {
   const p = path();
@@ -53,6 +57,14 @@ function render() {
 
 window.addEventListener('hashchange', render);
 window.addEventListener('app:render', render);
+
+// Back closes an open sheet before it leaves the screen.
+window.addEventListener('popstate', () => {
+  for (const r of Object.values(ROUTES)) {
+    if (r.view.handleBack && r.view.handleBack()) break;
+  }
+  render();
+});
 store.subscribe(render);
 render();
 

@@ -167,8 +167,8 @@ export function mount(root, rerender) {
     },
     discard: () => { if (confirm('Discard this workout? Nothing will be saved.')) { stopRest(); store.discardWorkout(); } },
     settings: () => { location.hash = '#/settings'; },
-    'add-ex': () => { picking = true; query = ''; rerender(); },
-    'close-pick': () => { picking = false; rerender(); },
+    'add-ex': () => openPicker(),
+    'close-pick': () => dismissPicker(),
     choose: el => addExercise(el.dataset.n),
     create: el => {
       const name = el.dataset.n;
@@ -249,8 +249,34 @@ export function mount(root, rerender) {
   if (rest) paintRest();
 }
 
+// The picker is a full-screen sheet, so it gets its own history entry: the
+// phone's back gesture should close it, not jump to the previous screen.
+function openPicker() {
+  picking = true;
+  query = '';
+  history.pushState({ sheet: 'picker' }, '');
+  rerenderRef();
+}
+
+function dismissPicker() {
+  picking = false;
+  rerenderRef();
+  // Consume the entry the sheet pushed so a later back doesn't spend a press
+  // doing nothing visible.
+  if (history.state && history.state.sheet === 'picker') history.back();
+}
+
+// Called by the router on popstate. Returns true when back was spent closing
+// the sheet, so the router leaves the route alone.
+export function handleBack() {
+  if (!picking) return false;
+  picking = false;
+  return true;
+}
+
 function addExercise(name) {
   picking = false;
+  if (history.state && history.state.sheet === 'picker') history.back();
   store.update(st => {
     if (!st.active) return;
     const prev = store.lastPerformance(name, st.active.id);

@@ -83,12 +83,20 @@ So a week of heavy pressing correctly shows partial triceps and front-delt
 volume instead of leaving them looking untrained. Only ticked sets count;
 planned-but-unfinished sets are ignored.
 
-The full mapping for all 32 exercises lives in `js/data/exercises.js` and every
-fraction is editable in **Settings → Exercise → muscle mapping** (stored as an
-override, so the defaults stay intact).
+Ten groups are tracked: Chest, Back, Side Delts, Rear Delts, Biceps, Triceps,
+Quads, Hamstrings, Glutes, Core. A group earns its place only if you would
+actually program work for it — muscles that only ever come along for the ride
+(forearms under every curl, front delts under every press) made the list longer
+without ever changing a training decision, so they are not tracked. Lats, upper
+back and traps are one Back number; abs and lower back are one Core number.
 
-Weekly targets default to common hypertrophy ranges (12 sets for chest, 10 for
-biceps, and so on) and are adjustable per muscle in Settings.
+Note that Calf Press credits nothing as a result. Map it to a group in
+**Settings → Exercise → muscle mapping** if you want it counted.
+
+The full mapping for all 32 exercises lives in `js/data/exercises.js` and every
+fraction is editable in Settings (stored as an override, so the defaults stay
+intact). Weekly targets default to common hypertrophy ranges and are adjustable
+per muscle.
 
 The window is a **rolling 7 days** — always the last 168 hours, so "remaining"
 is a live number rather than something that resets to zero every Monday.
