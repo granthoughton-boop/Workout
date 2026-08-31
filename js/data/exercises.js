@@ -6,18 +6,23 @@
 // program work for it. Muscles that only ever come along for the ride (forearms
 // under every curl, front delts under every press) inflated the list without
 // ever changing a training decision, so they are not tracked.
-
+//
+// Targets are budgeted against a real week rather than picked per muscle in
+// isolation: three sessions of ~18 sets, at roughly 1.5 credits per real set,
+// is about 80-85 credits to spend. Ordered by priority, so the top of the
+// screen is the work that matters most.
 export const MUSCLES = [
   { id: 'chest',      name: 'Chest',      target: 12 },
-  { id: 'back',       name: 'Back',       target: 14 },
+  { id: 'biceps',     name: 'Biceps',     target: 12 },
+  { id: 'triceps',    name: 'Triceps',    target: 12 },
   { id: 'side_delts', name: 'Side Delts', target: 10 },
-  { id: 'rear_delts', name: 'Rear Delts', target: 8 },
-  { id: 'biceps',     name: 'Biceps',     target: 10 },
-  { id: 'triceps',    name: 'Triceps',    target: 10 },
-  { id: 'quads',      name: 'Quads',      target: 12 },
-  { id: 'hamstrings', name: 'Hamstrings', target: 10 },
-  { id: 'glutes',     name: 'Glutes',     target: 10 },
-  { id: 'core',       name: 'Core',       target: 6 },
+  { id: 'back',       name: 'Back',       target: 9 },
+  { id: 'rear_delts', name: 'Rear Delts', target: 6 },
+  { id: 'traps',      name: 'Traps',      target: 4 },
+  { id: 'quads',      name: 'Quads',      target: 8 },
+  { id: 'hamstrings', name: 'Hamstrings', target: 6 },
+  { id: 'glutes',     name: 'Glutes',     target: 6 },
+  { id: 'core',       name: 'Core',       target: 4 },
 ];
 
 export const MUSCLE_NAME = Object.fromEntries(MUSCLES.map(m => [m.id, m.name]));
@@ -35,7 +40,8 @@ export const EXERCISES = [
   { name: 'Bicep Curl (Cable)',                    muscles: { biceps: 1 } },
   { name: 'Lying Leg Curl (Machine)',              muscles: { hamstrings: 1 } },
   { name: 'Iso-Lateral Row (Machine)',             muscles: { back: 1, biceps: 0.5, rear_delts: 0.25 } },
-  { name: 'Hip Abduction (Machine)',               muscles: { glutes: 1 } },
+  // Mostly glute medius, so it does not earn a full glute set.
+  { name: 'Hip Abduction (Machine)',               muscles: { glutes: 0.5 } },
   { name: 'Face Pull',                             muscles: { rear_delts: 1, back: 0.5 } },
   { name: 'Triceps Pushdown',                      muscles: { triceps: 1 } },
   { name: 'Dead Bug',                              muscles: { core: 1 } },
@@ -43,7 +49,10 @@ export const EXERCISES = [
   { name: 'Iso-Lateral Chest Press (Machine)',     muscles: { chest: 1, triceps: 0.5 } },
   { name: 'Triceps Pressdown',                     muscles: { triceps: 1 } },
   { name: 'Rear Delt Reverse Fly (Machine)',       muscles: { rear_delts: 1, back: 0.25 } },
-  { name: 'Shrug (Cable)',                         muscles: { back: 1 } },
+  // Traps, not back: shrugs add nothing to lat width, and crediting them to
+  // Back would make the back target look satisfied by work that does not
+  // build it.
+  { name: 'Shrug (Cable)',                         muscles: { traps: 1 } },
   { name: 'Seated Leg Curl (Machine)',             muscles: { hamstrings: 1 } },
   { name: 'Bicep Curl (Barbell)',                  muscles: { biceps: 1 } },
   { name: 'Chest Supported Incline Row (Dumbbell)',muscles: { back: 1, biceps: 0.5, rear_delts: 0.5 } },
@@ -52,10 +61,7 @@ export const EXERCISES = [
   { name: 'Shoulder Press (Dumbbell)',             muscles: { side_delts: 0.5, triceps: 0.5, chest: 0.25 } },
   { name: 'Preacher Curl (Barbell)',               muscles: { biceps: 1 } },
   { name: 'Lat Pulldown (Machine)',                muscles: { back: 1, biceps: 0.5 } },
-  { name: 'Deadlift (Trap bar)',                   muscles: { back: 1, glutes: 1, hamstrings: 0.75, quads: 0.5, core: 0.5 } },
-  // Calves are no longer tracked, so this counts toward nothing. Map it to a
-  // group in Settings, or leave it as an exercise you log without crediting.
-  { name: 'Calf Press (Machine)',                  muscles: {} },
+  { name: 'Deadlift (Trap bar)',                   muscles: { back: 1, glutes: 1, hamstrings: 0.75, quads: 0.5, traps: 0.5, core: 0.5 } },
   { name: 'Pull Up',                               muscles: { back: 1, biceps: 0.5 } },
   { name: 'Cable Core Pallof Press',               muscles: { core: 1 } },
 ];

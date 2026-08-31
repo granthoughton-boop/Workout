@@ -96,15 +96,21 @@ So a week of heavy pressing correctly shows partial triceps and front-delt
 volume instead of leaving them looking untrained. Only ticked sets count;
 planned-but-unfinished sets are ignored.
 
-Ten groups are tracked: Chest, Back, Side Delts, Rear Delts, Biceps, Triceps,
-Quads, Hamstrings, Glutes, Core. A group earns its place only if you would
-actually program work for it — muscles that only ever come along for the ride
+Eleven groups are tracked: Chest, Biceps, Triceps, Side Delts, Back, Rear
+Delts, Traps, Quads, Hamstrings, Glutes, Core — listed in priority order, so
+the top of the screen is the work that matters most. A group earns its place
+only if you would actually program work for it — muscles that only ever come along for the ride
 (forearms under every curl, front delts under every press) made the list longer
 without ever changing a training decision, so they are not tracked. Lats, upper
 back and traps are one Back number; abs and lower back are one Core number.
 
-Note that Calf Press credits nothing as a result. Map it to a group in
-**Settings → Exercise → muscle mapping** if you want it counted.
+Targets are budgeted against a real week rather than picked per muscle in
+isolation, since fractional credit means the totals have to fit the sets you
+actually do. They sum to 89 credits.
+
+Calf Press is not in the catalog: calves are not tracked, so it would have been
+invisible work. Add it back by creating it in the exercise picker and mapping
+it in Settings.
 
 The full mapping for all 32 exercises lives in `js/data/exercises.js` and every
 fraction is editable in Settings (stored as an override, so the defaults stay
