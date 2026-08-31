@@ -69,6 +69,18 @@ store.subscribe(render);
 render();
 
 if (!window.SINGLE_FILE_BUILD && 'serviceWorker' in navigator) {
+  // When a new build takes over, swap the running page for it. Without this an
+  // installed app keeps showing the old code until it is force-closed, which
+  // reads as "the update didn't work". Everything is persisted on write, so a
+  // reload mid-workout loses nothing.
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    // Ignore the first-ever registration, and never loop.
+    if (!hadController || reloading) return;
+    reloading = true;
+    location.reload();
+  });
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });

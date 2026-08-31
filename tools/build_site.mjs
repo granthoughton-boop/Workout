@@ -10,6 +10,8 @@
 // (Android quietly declines to offer the install).
 
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
@@ -42,6 +44,32 @@ for (const entry of SHIP) {
 // GitHub Pages runs Jekyll unless told not to; cpSync of a dotfile is easy to
 // lose track of, so make sure it landed.
 if (!existsSync(join(out, '.nojekyll'))) writeFileSync(join(out, '.nojekyll'), '');
+
+// Stamp the service worker's cache name with a hash of everything shipped, so
+// every content change produces a byte-different sw.js. A browser only re-runs
+// install when sw.js itself changes, so without this a deploy that doesn't
+// touch sw.js leaves installed apps on the old code indefinitely.
+const swPath = join(out, 'sw.js');
+const hash = createHash('sha256');
+for (const rel of [...SHIP].sort()) {
+  const from = join(out, rel);
+  const files = existsSync(from) && statSync(from).isDirectory()
+    ? readdirSync(from, { recursive: true }).map(f => join(from, f))
+    : [from];
+  for (const f of files.sort()) {
+    if (!existsSync(f) || statSync(f).isDirectory()) continue;
+    if (f === swPath) continue; // it carries the hash, so it cannot feed it
+    hash.update(rel + '\0');
+    hash.update(readFileSync(f));
+  }
+}
+const build = hash.digest('hex').slice(0, 12);
+const swSource = readFileSync(swPath, 'utf8');
+if (!swSource.includes('__BUILD__')) {
+  console.error('sw.js has no __BUILD__ placeholder to stamp');
+  process.exit(1);
+}
+writeFileSync(swPath, swSource.split('__BUILD__').join(build));
 
 const problems = [];
 
@@ -82,5 +110,5 @@ if (problems.length) {
   process.exit(1);
 }
 
-console.log(`built ${out}`);
+console.log(`built ${out} — cache workout-${build}`);
 console.log(`  ${shell.length} precached files, ${(manifest.icons || []).length} icons, ${seen.size} modules — all present`);
