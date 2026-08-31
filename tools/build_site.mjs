@@ -50,6 +50,8 @@ if (!existsSync(join(out, '.nojekyll'))) writeFileSync(join(out, '.nojekyll'), '
 // install when sw.js itself changes, so without this a deploy that doesn't
 // touch sw.js leaves installed apps on the old code indefinitely.
 const swPath = join(out, 'sw.js');
+const versionPath = join(out, 'js', 'version.js');
+const stampTargets = [swPath, versionPath];
 const hash = createHash('sha256');
 for (const rel of [...SHIP].sort()) {
   const from = join(out, rel);
@@ -58,18 +60,20 @@ for (const rel of [...SHIP].sort()) {
     : [from];
   for (const f of files.sort()) {
     if (!existsSync(f) || statSync(f).isDirectory()) continue;
-    if (f === swPath) continue; // it carries the hash, so it cannot feed it
+    if (stampTargets.includes(f)) continue; // they carry the hash, so cannot feed it
     hash.update(rel + '\0');
     hash.update(readFileSync(f));
   }
 }
 const build = hash.digest('hex').slice(0, 12);
-const swSource = readFileSync(swPath, 'utf8');
-if (!swSource.includes('__BUILD__')) {
-  console.error('sw.js has no __BUILD__ placeholder to stamp');
-  process.exit(1);
+for (const target of stampTargets) {
+  const src = readFileSync(target, 'utf8');
+  if (!src.includes('__BUILD__')) {
+    console.error(`${target} has no __BUILD__ placeholder to stamp`);
+    process.exit(1);
+  }
+  writeFileSync(target, src.split('__BUILD__').join(build));
 }
-writeFileSync(swPath, swSource.split('__BUILD__').join(build));
 
 const problems = [];
 

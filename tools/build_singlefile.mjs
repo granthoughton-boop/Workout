@@ -5,6 +5,7 @@
 
 import * as esbuild from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -25,6 +26,11 @@ const js = outputFiles[0].text.replace(/[^\x00-\x7F]/g,
   c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
 const css = readFileSync(join(root, 'css/app.css'), 'utf8');
 
+// Same idea as the site build: the version shown in the app is the build that
+// is actually running, never a placeholder.
+const build = createHash('sha256').update(js).update(css).digest('hex').slice(0, 12);
+const stamped = js.split('__BUILD__').join(build);
+
 writeFileSync(out, `<title>Workout Log</title>
 <style>
 ${css}</style>
@@ -34,7 +40,7 @@ ${css}</style>
 
 <script>window.SINGLE_FILE_BUILD = true;</script>
 <script>
-${js}</script>
+${stamped}</script>
 `);
 
 const bytes = readFileSync(out);

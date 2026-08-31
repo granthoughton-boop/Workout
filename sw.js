@@ -11,7 +11,7 @@ const SHELL = [
   './icons/icon-192.png', './icons/icon-512.png',
   './icons/maskable-512.png', './icons/apple-touch-icon.png',
   './css/app.css',
-  './js/app.js', './js/store.js', './js/ui.js',
+  './js/app.js', './js/store.js', './js/ui.js', './js/version.js',
   './js/data/exercises.js', './js/data/seed.js',
   './js/views/home.js', './js/views/log.js', './js/views/muscles.js',
   './js/views/history.js', './js/views/settings.js',

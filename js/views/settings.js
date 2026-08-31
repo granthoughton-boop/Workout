@@ -1,5 +1,6 @@
 import * as store from '../store.js';
 import { MUSCLES } from '../data/exercises.js';
+import { VERSION_LABEL } from '../version.js';
 import { html, raw, fmt, onAct } from '../ui.js';
 
 let editing = null; // exercise name whose muscle map is open
@@ -70,6 +71,8 @@ export function view() {
         <button class="btn ghost danger" data-act="reset">Erase all data</button>
         <input type="file" id="file" accept=".json,.csv" hidden>
       </div>
+
+      <div class="version">Workout &middot; build <b>${VERSION_LABEL}</b></div>
     </main>`;
 }
 

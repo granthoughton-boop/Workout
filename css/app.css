@@ -259,3 +259,14 @@ button.pill { padding: 9px 12px; min-height: 34px; }
 /* A muscle at zero still needs to read as "nothing yet" rather than as an
    empty track, so the red state stays visible at 0%. */
 .bar i.none { min-width: 4px; }
+
+/* Build stamp. Small and out of the way, but present so "did the update land?"
+   is answerable by looking. */
+.version {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 4px 0 24px;
+  font-variant-numeric: tabular-nums;
+}
+.version b { color: #6b6b70; font-weight: 600; }

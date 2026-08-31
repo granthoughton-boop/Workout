@@ -77,8 +77,16 @@ before it will offer to install.
 - **Muscles** — the weekly-volume screen. Rolling 7-day fractional set counts
   against a target per muscle group, with what's remaining.
 - **History** — every workout, expandable to per-set detail.
-- **Settings** — rest length, weekly targets, exercise→muscle mapping, and
-  JSON/CSV import + export.
+- **Settings** — rest length, weekly targets, exercise→muscle mapping, JSON/CSV
+  import + export, and the build id at the bottom.
+
+## Versioning
+
+`tools/build_site.mjs` hashes everything it ships and stamps that value into
+both the service worker's cache name and `js/version.js`, which Settings
+displays. The two cannot drift: the build shown in the app *is* the build
+running, so "did my update land?" is answered by looking rather than guessing.
+Served straight from the repo the placeholder survives and reads as `dev`.
 
 ## How muscle credit works
 
@@ -150,6 +158,7 @@ manifest.webmanifest  PWA manifest
 sw.js                 cache-first service worker
 css/app.css
 js/app.js             hash router + tab bar
+js/version.js         build id, stamped at deploy time
 js/store.js           state, persistence, weekly-volume + bodyweight maths
 js/ui.js              escaping/formatting helpers, delegated click binding
 js/data/exercises.js  muscle groups, targets, exercise→muscle fractions
