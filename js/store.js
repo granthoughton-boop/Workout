@@ -157,9 +157,13 @@ export function weekWindow(now = new Date()) {
 // ticking a set on the log screen moves these numbers immediately.
 export function weeklyVolume(now = new Date()) {
   const { start } = weekWindow(now);
+  // Credit earned more than six days ago leaves the rolling window within the
+  // next 24 hours, so a muscle can look satisfied today and be short tomorrow.
+  const expiryEdge = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
   const totals = {};
+  const expiring = {};
   const lastTrained = {};
-  MUSCLES.forEach(m => { totals[m.id] = 0; });
+  MUSCLES.forEach(m => { totals[m.id] = 0; expiring[m.id] = 0; });
 
   const sessions = state.active ? [...state.workouts, state.active] : state.workouts;
   for (const w of sessions) {
@@ -170,7 +174,10 @@ export function weeklyVolume(now = new Date()) {
       const muscles = findExercise(ex.name).muscles;
       for (const [id, frac] of Object.entries(muscles)) {
         if (totals[id] === undefined) continue;
-        if (when >= start) totals[id] += n * frac;
+        if (when >= start) {
+          totals[id] += n * frac;
+          if (when < expiryEdge) expiring[id] += n * frac;
+        }
         if (!lastTrained[id] || when > lastTrained[id]) lastTrained[id] = when;
       }
     }
@@ -178,17 +185,71 @@ export function weeklyVolume(now = new Date()) {
 
   return MUSCLES.map(m => {
     const done = Math.round(totals[m.id] * 10) / 10;
+    const leaving = Math.round(expiring[m.id] * 10) / 10;
     const target = targetFor(m.id);
+    // What the window will show once today's oldest credit ages out. Planning
+    // against this instead of the current number is what stops a muscle
+    // quietly falling behind the moment a session rolls off.
+    const projected = Math.round((done - leaving) * 10) / 10;
     return {
       id: m.id,
       name: m.name,
       done,
       target,
+      expiring: leaving,
+      projected,
       remaining: Math.max(0, Math.round((target - done) * 10) / 10),
+      projectedRemaining: Math.max(0, Math.round((target - projected) * 10) / 10),
       pct: target ? Math.min(100, (done / target) * 100) : 0,
       lastTrained: lastTrained[m.id] || null,
     };
   });
+}
+
+/* ---------- what to train next ---------- */
+
+// Ranks the catalog by how much one set would close the gap, weighted by how
+// far behind each muscle is, and measured against the window as it will stand
+// tomorrow rather than today. Credit past a target is worth nothing, so each
+// contribution is capped at what is actually still needed.
+export function suggestions(limit = 5, now = new Date()) {
+  const vol = weeklyVolume(now);
+  const byId = Object.fromEntries(vol.map(v => [v.id, v]));
+
+  const ranked = catalog().map(ex => {
+    let score = 0;
+    let gain = 0;
+    const parts = [];
+    for (const [id, frac] of Object.entries(ex.muscles)) {
+      const v = byId[id];
+      if (!v || !v.target) continue;
+      const need = v.projectedRemaining;
+      if (need <= 0) continue;
+      const closes = Math.min(frac, need);
+      gain += closes;
+      score += closes * (need / v.target); // the further behind, the more it counts
+      parts.push({ id, name: v.name, closes, frac });
+    }
+    parts.sort((a, b) => b.closes - a.closes);
+    return { name: ex.name, score, gain: Math.round(gain * 10) / 10, parts };
+  }).filter(s => s.score > 0);
+
+  ranked.sort((a, b) => b.score - a.score || b.gain - a.gain || a.name.localeCompare(b.name));
+  return ranked.slice(0, limit);
+}
+
+export function weekOutlook(now = new Date()) {
+  const vol = weeklyVolume(now);
+  const behind = vol.filter(v => v.projectedRemaining > 0);
+  const rollingOff = vol.filter(v => v.expiring > 0)
+    .sort((a, b) => b.expiring - a.expiring);
+  return {
+    behind: behind.length,
+    groups: vol.length,
+    gap: Math.round(behind.reduce((a, v) => a + v.projectedRemaining, 0) * 10) / 10,
+    rollingOff,
+    expiringTotal: Math.round(rollingOff.reduce((a, v) => a + v.expiring, 0) * 10) / 10,
+  };
 }
 
 /* ---------- bodyweight ---------- */

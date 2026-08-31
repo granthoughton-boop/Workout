@@ -270,3 +270,99 @@ button.pill { padding: 9px 12px; min-height: 34px; }
   font-variant-numeric: tabular-nums;
 }
 .version b { color: #6b6b70; font-weight: 600; }
+
+/* ---------- what to train next ---------- */
+
+.coach {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+.coach.open { border-color: #34405a; }
+
+.coach-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 13px 14px;
+}
+.coach-head:active { background: var(--surface-2); }
+.coach-txt { flex: 1; min-width: 0; }
+.coach-k {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--muted);
+}
+.coach-v {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.coach-s { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.coach-caret { color: var(--muted); font-size: 11px; flex: none; }
+
+.coach-body { border-top: 1px solid var(--line); }
+
+.sug {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.sug:active { background: var(--surface-2); }
+.sug-rank {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sug-main { flex: 1; min-width: 0; }
+.sug-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sug-parts { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.sug-parts b { color: #a8a8ad; font-weight: 600; }
+.sug-gain {
+  flex: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
+}
+
+.coach-note {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  padding: 11px 14px;
+  background: #1a1608;
+  border-bottom: 1px solid var(--line);
+}
+.coach-note b { color: #ffd60a; font-weight: 600; }
+
+.coach-foot { font-size: 11px; color: #6b6b70; padding: 10px 14px; }
+.coach-empty { font-size: 13px; color: var(--muted); padding: 14px; line-height: 1.5; }

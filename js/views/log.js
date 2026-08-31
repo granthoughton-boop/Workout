@@ -4,6 +4,7 @@ import { html, raw, fmt, duration, clock, ago, onAct } from '../ui.js';
 let rest = null;      // { endsAt, total }
 let restTimerId = null;
 let picking = false;
+let coachOpen = false;
 let query = '';
 let rerenderRef = () => {};
 
@@ -26,6 +27,7 @@ export function view() {
       <div><div class="k">Sets</div><div class="v" id="nsets">${v.sets}</div></div>
     </div>
     <main>
+      ${raw(coach())}
       ${raw(w.exercises.map((ex, i) => exerciseBlock(ex, i, w.id)).join(''))}
       ${raw(w.exercises.length ? '' : '<div class="empty">Add your first exercise to start logging.</div>')}
       <button class="btn primary" data-act="add-ex" style="margin:8px 0 14px">+ Add Exercise</button>
@@ -47,6 +49,7 @@ function idle(s) {
         <div class="small muted" style="margin-bottom:14px">No workout in progress</div>
         <button class="btn primary" data-act="start">+ Start empty workout</button>
       </div>
+      ${raw(coach())}
       ${raw(last ? html`
       <div class="card">
         <h2>Repeat last session</h2>
@@ -95,6 +98,64 @@ function exerciseBlock(ex, exIndex, workoutId) {
       </table>
       <button class="btn sm ghost" data-act="add-set" data-i="${exIndex}" style="width:100%;margin-top:8px">+ Add Set</button>
     </div>`;
+}
+
+// What to train next, ranked against the week as it will stand tomorrow.
+// Recomputed on every render, so ticking a set reorders it immediately.
+function coach() {
+  const picks = store.suggestions(5);
+  const out = store.weekOutlook();
+  const top = picks[0];
+
+  const headline = top
+    ? top.name
+    : (out.expiringTotal > 0 ? 'All targets met' : 'All targets met, nothing expiring');
+
+  const sub = top
+    ? `${out.behind} of ${out.groups} groups behind &middot; ${fmt(out.gap)} sets to go`
+    : 'Nothing is behind for the next 24h';
+
+  return html`
+    <div class="coach ${coachOpen ? 'open' : ''}">
+      <button class="coach-head" data-act="coach" aria-expanded="${coachOpen ? 'true' : 'false'}">
+        <div class="coach-txt">
+          <div class="coach-k">Best next exercise</div>
+          <div class="coach-v">${headline}</div>
+          <div class="coach-s">${raw(sub)}</div>
+        </div>
+        <span class="coach-caret">${raw(coachOpen ? '&#9650;' : '&#9660;')}</span>
+      </button>
+      ${raw(coachOpen ? coachBody(picks, out) : '')}
+    </div>`;
+}
+
+function coachBody(picks, out) {
+  if (!picks.length) {
+    return html`<div class="coach-body">
+      <div class="coach-empty">Every group is on target for the next 24 hours. Anything you add now is
+      banked against later in the week.</div>
+    </div>`;
+  }
+
+  return html`<div class="coach-body">
+    ${raw(picks.map((p, i) => html`
+      <button class="sug" data-act="sug" data-n="${p.name}">
+        <span class="sug-rank">${i + 1}</span>
+        <span class="sug-main">
+          <span class="sug-name">${p.name}</span>
+          <span class="sug-parts">${raw(p.parts.map(part =>
+            `<b>${part.name}</b> +${fmt(part.closes)}`).join(' &middot; '))}</span>
+        </span>
+        <span class="sug-gain">+${fmt(p.gain)}</span>
+      </button>`).join(''))}
+    ${raw(out.expiringTotal > 0 ? html`
+      <div class="coach-note">
+        <b>${fmt(out.expiringTotal)} sets roll off in the next 24h</b> —
+        ${raw(out.rollingOff.slice(0, 4).map(v => `${v.name} ${fmt(v.expiring)}`).join(', '))}.
+        Rankings already assume that.
+      </div>` : '')}
+    <div class="coach-foot">Ranked by how much one set closes your biggest gaps. Tap to add.</div>
+  </div>`;
 }
 
 function restBar() {
@@ -167,6 +228,8 @@ export function mount(root, rerender) {
     },
     discard: () => { if (confirm('Discard this workout? Nothing will be saved.')) { stopRest(); store.discardWorkout(); } },
     settings: () => { location.hash = '#/settings'; },
+    coach: () => { coachOpen = !coachOpen; rerender(); },
+    sug: el => addOrExtend(el.dataset.n),
     'add-ex': () => openPicker(),
     'close-pick': () => dismissPicker(),
     choose: el => addExercise(el.dataset.n),
@@ -251,6 +314,23 @@ export function mount(root, rerender) {
 
 // The picker is a full-screen sheet, so it gets its own history entry: the
 // phone's back gesture should close it, not jump to the previous screen.
+// A suggestion you are already doing should deepen that block rather than
+// start a duplicate one.
+function addOrExtend(name) {
+  const active = store.get().active;
+  if (!active) {
+    store.startWorkout();
+    return addExercise(name);
+  }
+  const existing = active.exercises.findIndex(e => e.name === name);
+  if (existing < 0) return addExercise(name);
+  store.update(st => {
+    const sets = st.active.exercises[existing].sets;
+    const last = sets[sets.length - 1];
+    sets.push({ w: last ? last.w : 0, r: last ? last.r : 0, done: false });
+  });
+}
+
 function openPicker() {
   picking = true;
   query = '';

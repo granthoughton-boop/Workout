@@ -71,9 +71,10 @@ before it will offer to install.
 - **Home** — bodyweight entry with `−`/`+` steppers to the nearest 0.1 kg, a
   week-over-week trend chip, an SVG trend chart (30d/90d/365d/all), and this
   week's muscle-group summary.
-- **Log** — the active workout: per-exercise set tables with each set's previous
-  performance, kg/reps cells, a tick to complete, a 🏅 on record sets, an
-  auto-starting rest timer, running duration/volume/set totals.
+- **Log** — the active workout: a collapsible **what to train next** panel at the
+  top, then per-exercise set tables with each set's previous performance,
+  kg/reps cells, a tick to complete, a 🏅 on record sets, an auto-starting rest
+  timer, running duration/volume/set totals.
 - **Muscles** — the weekly-volume screen. Rolling 7-day fractional set counts
   against a target per muscle group, with what's remaining.
 - **History** — every workout, expandable to per-set detail.
@@ -124,6 +125,20 @@ The full mapping for all 32 exercises lives in `js/data/exercises.js` and every
 fraction is editable in Settings (stored as an override, so the defaults stay
 intact). Weekly targets default to common hypertrophy ranges and are adjustable
 per muscle.
+
+### What to train next
+
+The Log screen ranks the five exercises whose next set would close the most of
+your weekly gap. Each contribution is capped at what is still needed (credit
+past a target is worth nothing) and weighted by how far behind that muscle is,
+so a group at 0/12 pulls harder than one at 11/12.
+
+It ranks against the window as it will stand **tomorrow**, not today. In a
+rolling window, credit earned seven days ago ages out overnight, so a muscle can
+read as satisfied and be short by morning. When that is about to happen the
+panel says how much is leaving and from where. It recomputes on every render, so
+ticking a set reorders it mid-session, and tapping a row adds that exercise —
+or another set of it if it is already in the workout.
 
 The window is a **rolling 7 days** — always the last 168 hours, so "remaining"
 is a live number rather than something that resets to zero every Monday.
