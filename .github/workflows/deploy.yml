@@ -33,10 +33,12 @@ jobs:
       - name: Build and verify site
         run: node tools/build_site.mjs _site
 
+      # Requires Pages to be enabled once by hand, under
+      # Settings -> Pages -> Source: GitHub Actions. The built-in token cannot
+      # create the Pages site itself (that is a repo-admin action), so
+      # `enablement: true` here just fails with "Resource not accessible by
+      # integration".
       - uses: actions/configure-pages@v5
-        with:
-          # Turn Pages on for the repo on the first run, if it isn't already.
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
