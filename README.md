@@ -11,14 +11,27 @@ to register on a plain `http://192.168.x.x` LAN address, and without a service
 worker there is no offline support and Android will only make a bookmark
 shortcut instead of installing the app.
 
-### GitHub Pages (recommended)
+### GitHub Pages (automatic)
 
-The repo is already a valid site root, so there is nothing to build:
+`.github/workflows/deploy.yml` deploys on every push to `main`, so once it is
+set up you never touch it again.
 
-1. **Settings → Pages** on the GitHub repo.
-2. **Source: Deploy from a branch**, pick this branch, folder `/ (root)`, Save.
-3. Wait for the deploy, then open `https://<user>.github.io/Workout/` on your
-   phone.
+1. **Settings → Pages → Source: GitHub Actions** (one time).
+2. Push to `main`.
+3. Open `https://<user>.github.io/Workout/` on your phone.
+
+Each run builds the site with `tools/build_site.mjs` and fails rather than
+deploying if the service worker precaches a file that is not shipped, a
+manifest icon would 404, or an imported module is missing — the failures that
+break an installed app silently instead of visibly. Run the same check locally
+with:
+
+```sh
+node tools/build_site.mjs
+```
+
+Only the app's runtime files are deployed; `tools/`, `data/` and the
+single-file build stay out of the published site.
 
 Then:
 
@@ -139,6 +152,8 @@ js/views/*.js         one module per screen: view() + mount()
 tools/gen_seed.py     CSV -> seed.js
 tools/gen_icons.mjs   icon.svg -> icons/*.png
 tools/build_singlefile.mjs  bundle everything into one HTML file
+tools/build_site.mjs  assemble + verify the deployable site
+.github/workflows/    deploy to GitHub Pages on push to main
 ```
 
 Views return HTML strings and bind behaviour through `[data-act]` delegation.
