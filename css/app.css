@@ -366,3 +366,14 @@ button.pill { padding: 9px 12px; min-height: 34px; }
 
 .coach-foot { font-size: 11px; color: #6b6b70; padding: 10px 14px; }
 .coach-empty { font-size: 13px; color: var(--muted); padding: 14px; line-height: 1.5; }
+
+/* A gap nothing in rotation can close - needs to read as a prompt, not a stat. */
+.coach-gap {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  padding: 11px 14px;
+  background: #1c0f0f;
+  border-bottom: 1px solid var(--line);
+}
+.coach-gap b { color: #ff9f8a; font-weight: 600; }

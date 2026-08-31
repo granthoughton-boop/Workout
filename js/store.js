@@ -208,6 +208,23 @@ export function weeklyVolume(now = new Date()) {
 
 /* ---------- what to train next ---------- */
 
+// Suggestions are limited to things actually in rotation. A ranking full of
+// lifts you have not touched in months is a reading list, not a prompt.
+export const RECENT_DAYS = 30;
+
+export function recentExercises(days = RECENT_DAYS, now = new Date()) {
+  const cut = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const seen = new Set();
+  const sessions = state.active ? [...state.workouts, state.active] : state.workouts;
+  for (const w of sessions) {
+    if (new Date(w.start) < cut) continue;
+    for (const ex of w.exercises) {
+      if (completedSets(ex).length) seen.add(ex.name);
+    }
+  }
+  return seen;
+}
+
 // Ranks the catalog by how much one set would close the gap, weighted by how
 // far behind each muscle is, and measured against the window as it will stand
 // tomorrow rather than today. Credit past a target is worth nothing, so each
@@ -216,7 +233,8 @@ export function suggestions(limit = 5, now = new Date()) {
   const vol = weeklyVolume(now);
   const byId = Object.fromEntries(vol.map(v => [v.id, v]));
 
-  const ranked = catalog().map(ex => {
+  const recent = recentExercises(RECENT_DAYS, now);
+  const ranked = catalog().filter(ex => recent.has(ex.name)).map(ex => {
     let score = 0;
     let gain = 0;
     const parts = [];
@@ -243,12 +261,25 @@ export function weekOutlook(now = new Date()) {
   const behind = vol.filter(v => v.projectedRemaining > 0);
   const rollingOff = vol.filter(v => v.expiring > 0)
     .sort((a, b) => b.expiring - a.expiring);
+
+  // A muscle you are behind on that nothing in rotation trains would otherwise
+  // just be missing from the rankings, which reads as "no gap here".
+  const recent = recentExercises(RECENT_DAYS, now);
+  const trainable = new Set();
+  for (const ex of catalog()) {
+    if (!recent.has(ex.name)) continue;
+    for (const id of Object.keys(ex.muscles)) trainable.add(id);
+  }
+  const uncovered = behind.filter(v => !trainable.has(v.id));
+
   return {
     behind: behind.length,
     groups: vol.length,
     gap: Math.round(behind.reduce((a, v) => a + v.projectedRemaining, 0) * 10) / 10,
     rollingOff,
     expiringTotal: Math.round(rollingOff.reduce((a, v) => a + v.expiring, 0) * 10) / 10,
+    uncovered,
+    recentCount: recent.size,
   };
 }
 

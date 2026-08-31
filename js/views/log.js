@@ -107,11 +107,17 @@ function coach() {
   const out = store.weekOutlook();
   const top = picks[0];
 
-  const headline = top
-    ? top.name
-    : (out.expiringTotal > 0 ? 'All targets met' : 'All targets met, nothing expiring');
+  // With no picks the reason matters: everything met is a different message
+  // from "you are behind, but nothing you have trained lately covers it".
+  // Never spill a full muscle list into a one-line header.
+  const headline = top ? top.name
+    : !out.recentCount ? `Nothing logged in the last ${store.RECENT_DAYS} days`
+    : out.uncovered.length === 1 ? `Nothing recent trains ${out.uncovered[0].name}`
+    : out.uncovered.length ? `Nothing recent trains ${out.uncovered.length} of your groups`
+    : out.behind ? 'Nothing left that helps'
+    : 'All targets met';
 
-  const sub = top
+  const sub = out.behind
     ? `${out.behind} of ${out.groups} groups behind &middot; ${fmt(out.gap)} sets to go`
     : 'Nothing is behind for the next 24h';
 
@@ -129,8 +135,23 @@ function coach() {
     </div>`;
 }
 
+// Long lists get truncated: a header or a note is not a place to enumerate
+// eleven muscle groups.
+function namesOf(list, max = 3) {
+  const shown = list.slice(0, max).map(v => `${v.name} ${fmt(v.projectedRemaining)}`).join(', ');
+  const rest = list.length - max;
+  return rest > 0 ? `${shown} and ${rest} more` : shown;
+}
+
 function coachBody(picks, out) {
-  if (!picks.length) {
+  if (!out.recentCount) {
+    return html`<div class="coach-body">
+      <div class="coach-empty">Rankings come from the exercises you have trained in the last
+      ${store.RECENT_DAYS} days, and there aren't any yet. Log a set and this fills in.</div>
+    </div>`;
+  }
+
+  if (!picks.length && !out.uncovered.length) {
     return html`<div class="coach-body">
       <div class="coach-empty">Every group is on target for the next 24 hours. Anything you add now is
       banked against later in the week.</div>
@@ -148,13 +169,21 @@ function coachBody(picks, out) {
         </span>
         <span class="sug-gain">+${fmt(p.gain)}</span>
       </button>`).join(''))}
+    ${raw(out.uncovered.length ? html`
+      <div class="coach-gap">
+        <b>${raw(namesOf(out.uncovered))}</b>
+        ${out.uncovered.length === 1 ? 'is' : 'are'} behind, but nothing you have trained in the last
+        ${store.RECENT_DAYS} days works ${out.uncovered.length === 1 ? 'it' : 'them'}.
+        Use Add Exercise to bring ${out.uncovered.length === 1 ? 'it' : 'them'} back into rotation.
+      </div>` : '')}
     ${raw(out.expiringTotal > 0 ? html`
       <div class="coach-note">
         <b>${fmt(out.expiringTotal)} sets roll off in the next 24h</b> —
         ${raw(out.rollingOff.slice(0, 4).map(v => `${v.name} ${fmt(v.expiring)}`).join(', '))}.
         Rankings already assume that.
       </div>` : '')}
-    <div class="coach-foot">Ranked by how much one set closes your biggest gaps. Tap to add.</div>
+    <div class="coach-foot">Ranked by how much one set closes your biggest gaps, from the
+      ${out.recentCount} exercises you have trained in the last ${store.RECENT_DAYS} days. Tap to add.</div>
   </div>`;
 }
 
