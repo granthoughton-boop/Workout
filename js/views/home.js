@@ -1,13 +1,14 @@
 import * as store from '../store.js';
 import { html, raw, fmt, fmtDate, ago, duration, onAct } from '../ui.js';
 
-let range = 90; // days shown on the chart
+let range = 90;          // days shown on the chart
+let weeksOpen = false;   // "This week" row expanded to the previous 8 weeks
+const PAST_WEEKS = 8;
 
 export function view() {
   const s = store.get();
   const stats = store.weightStats();
-  const vol = store.weeklyVolume();
-  const behind = vol.filter(m => m.remaining > 0).length;
+  const goal = store.goalProgress();
   const recent = s.workouts.slice(-3).reverse();
   const draft = stats ? stats.latest.kg : 75;
 
@@ -55,12 +56,13 @@ export function view() {
           <h2 style="margin:0">This week</h2>
           <a href="#/muscles" class="pill" style="text-decoration:none">View all →</a>
         </div>
-        <div class="spread">
-          <div><div class="bw-now" style="font-size:34px">${vol.length - behind}<span> / ${vol.length}</span></div>
-          <div class="tiny muted" style="margin-top:4px">muscle groups at target</div></div>
-        </div>
-        <div style="margin-top:12px"><button class="btn ${s.active ? 'green' : 'primary'}" data-act="start">
-          ${s.active ? 'Resume workout' : '+ Start workout'}</button></div>
+        <button class="wk-row" data-act="weeks" aria-expanded="${weeksOpen ? 'true' : 'false'}">
+          <span class="wk-pct">${goal.pct}<span>%</span></span>
+          <span class="bar wk-bar"><i class="${barCls(goal.pct)}" style="width:${Math.min(100, goal.pct)}%"></i></span>
+          <span class="wk-sets">${fmt(goal.credited)} / ${fmt(goal.target)} sets</span>
+          <span class="wk-caret">${raw(weeksOpen ? '&#9650;' : '&#9660;')}</span>
+        </button>
+        ${raw(weeksOpen ? pastWeeks() : '')}
       </div>
 
       <div class="card">
@@ -93,12 +95,41 @@ export function mount(root, rerender) {
       input.blur();
     },
     range: el => { range = Number(el.dataset.d); rerender(); },
-    start: () => {
-      if (!store.get().active) store.startWorkout();
-      location.hash = '#/log';
-    },
+    weeks: () => { weeksOpen = !weeksOpen; rerender(); },
   });
   input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+}
+
+// Percent of the weekly goal, coloured the same way the muscle bars are.
+function barCls(pct) {
+  if (pct <= 0) return 'none';
+  if (pct >= 100) return 'done';
+  if (pct < 50) return 'low';
+  return '';
+}
+
+// The eight weeks before the current rolling window, one row each.
+function pastWeeks() {
+  const weeks = store.goalHistory(PAST_WEEKS);
+  return html`<div class="wk-past">
+    ${weeks.map(w => html`
+      <div class="wk-hist">
+        <span class="wk-hist-lbl">${weekLabel(w)}</span>
+        <span class="bar wk-bar"><i class="${barCls(w.pct)}" style="width:${Math.min(100, w.pct)}%"></i></span>
+        <span class="wk-hist-pct">${w.pct}%</span>
+      </div>`)}
+    <div class="wk-foot">Each week scored against today's targets. A group counts at most its own target.</div>
+  </div>`;
+}
+
+function weekLabel(w) {
+  const from = w.start;
+  const to = new Date(w.end.getTime() - 86400000); // last full day of the window
+  const f = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
+  // formatRange collapses the shared month the way the locale expects
+  // ("18–24 Aug" here, "Aug 18 – 24" in en-US); hand-joining two formatted
+  // dates gets that wrong in one locale or the other.
+  return f.formatRange ? f.formatRange(from, to) : `${f.format(from)} – ${f.format(to)}`;
 }
 
 // Inline SVG sparkline - no chart library, scales to the card width via viewBox.

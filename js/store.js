@@ -206,6 +206,77 @@ export function weeklyVolume(now = new Date()) {
   });
 }
 
+/* ---------- weekly goal progress ---------- */
+
+// Fractional set count per muscle inside an arbitrary window, used for past
+// weeks. weeklyVolume() covers the live rolling week and carries the extra
+// expiry bookkeeping the home and muscles screens need.
+function musclesInWindow(start, end) {
+  const totals = {};
+  MUSCLES.forEach(m => { totals[m.id] = 0; });
+
+  const sessions = state.active ? [...state.workouts, state.active] : state.workouts;
+  for (const w of sessions) {
+    const when = new Date(w.start);
+    if (when < start || when >= end) continue;
+    for (const ex of w.exercises) {
+      const n = completedSets(ex).length;
+      if (!n) continue;
+      for (const [id, frac] of Object.entries(findExercise(ex.name).muscles)) {
+        if (totals[id] === undefined) continue;
+        totals[id] += n * frac;
+      }
+    }
+  }
+  return totals;
+}
+
+// One number for "how did the week go". Each muscle's credit is capped at its
+// own target, so hammering chest can't paper over a week that never touched
+// legs - 100% means every group was actually served.
+function progressFrom(totals) {
+  let sets = 0, credited = 0, target = 0, hit = 0, groups = 0;
+  for (const m of MUSCLES) {
+    const done = totals[m.id] || 0;
+    const t = targetFor(m.id);
+    sets += done;
+    if (!t) continue;
+    groups++;
+    target += t;
+    credited += Math.min(done, t);
+    if (done >= t) hit++;
+  }
+  const r1 = n => Math.round(n * 10) / 10;
+  return {
+    sets: r1(sets),
+    credited: r1(credited),
+    target: r1(target),
+    pct: target ? Math.round((credited / target) * 100) : 0,
+    hit,
+    groups,
+  };
+}
+
+export function goalProgress(now = new Date()) {
+  const totals = {};
+  for (const m of weeklyVolume(now)) totals[m.id] = m.done;
+  return progressFrom(totals);
+}
+
+// The weeks before the current rolling window, most recent first. Targets are
+// today's targets: this answers "how would past weeks score against what I am
+// aiming for now", which is what makes the rows comparable.
+export function goalHistory(weeks = 8, now = new Date()) {
+  const wk = 7 * 24 * 60 * 60 * 1000;
+  const out = [];
+  for (let i = 1; i <= weeks; i++) {
+    const start = new Date(now.getTime() - (i + 1) * wk);
+    const end = new Date(now.getTime() - i * wk);
+    out.push({ start, end, weeksAgo: i, ...progressFrom(musclesInWindow(start, end)) });
+  }
+  return out;
+}
+
 /* ---------- what to train next ---------- */
 
 // Suggestions are limited to things actually in rotation. A ranking full of
