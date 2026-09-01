@@ -371,9 +371,11 @@ export function deleteWorkout(id) {
 }
 
 export function volumeOf(workout) {
-  let kg = 0, sets = 0;
+  let kg = 0, sets = 0, exercises = 0;
   for (const ex of workout.exercises) {
-    for (const s of ex.sets.filter(x => x.done)) { kg += s.w * s.r; sets++; }
+    const done = ex.sets.filter(x => x.done);
+    if (done.length) exercises++; // an exercise you have not yet worked isn't one you've done
+    for (const s of done) { kg += s.w * s.r; sets++; }
   }
-  return { kg: Math.round(kg), sets };
+  return { kg: Math.round(kg), sets, exercises };
 }

@@ -22,9 +22,9 @@ export function view() {
       <button class="btn primary sm" data-act="finish">Finish</button>
     </div>
     <div class="stats">
-      <div><div class="k">Duration</div><div class="v accent" id="dur">${duration(w.start, null)}</div></div>
-      <div><div class="k">Volume</div><div class="v" id="vol">${v.kg.toLocaleString()} kg</div></div>
-      <div><div class="k">Sets</div><div class="v" id="nsets">${v.sets}</div></div>
+      <div><div class="k">Time</div><div class="v accent" id="dur">${duration(w.start, null)}</div></div>
+      <div><div class="k">Exercises</div><div class="v">${v.exercises}</div></div>
+      <div><div class="k">Sets</div><div class="v">${v.sets}</div></div>
     </div>
     <main>
       ${raw(coach())}
@@ -64,7 +64,6 @@ function idle(s) {
 function exerciseBlock(ex, exIndex, workoutId) {
   const prev = store.lastPerformance(ex.name, workoutId);
   const pb = store.personalBest(ex.name);
-  const muscles = store.findExercise(ex.name).muscles;
 
   return html`
     <div class="ex">
@@ -72,8 +71,6 @@ function exerciseBlock(ex, exIndex, workoutId) {
         <span class="ex-name">${ex.name}</span>
         <button class="ex-menu" data-act="rm-ex" data-i="${exIndex}" aria-label="Remove exercise">✕</button>
       </div>
-      <div class="ex-muscles">${raw(Object.entries(muscles).sort((a, b) => b[1] - a[1])
-        .map(([id, f]) => `${id.replace(/_/g, ' ')} ${f}`).join(' · '))}</div>
       <input class="ex-note" data-act-input="note" data-i="${exIndex}" placeholder="Add notes here…" value="${ex.notes || ''}">
       <table class="sets">
         <colgroup><col class="c-set"><col class="c-prev"><col><col><col class="c-tick"></colgroup>
@@ -107,32 +104,24 @@ function coach() {
   const out = store.weekOutlook();
   const top = picks[0];
 
-  // With no picks the reason matters: everything met is a different message
-  // from "you are behind, but nothing you have trained lately covers it".
-  // Never spill a full muscle list into a one-line header.
-  const headline = top ? top.name
-    : !out.recentCount ? `Nothing logged in the last ${store.RECENT_DAYS} days`
-    : out.uncovered.length === 1 ? `Nothing recent trains ${out.uncovered[0].name}`
-    : out.uncovered.length ? `Nothing recent trains ${out.uncovered.length} of your groups`
-    : out.behind ? 'Nothing left that helps'
-    : 'All targets met';
-
-  const sub = out.behind
-    ? `${out.behind} of ${out.groups} groups behind &middot; ${fmt(out.gap)} sets to go`
-    : 'Nothing is behind for the next 24h';
-
+  // Closed, it says one thing. Every number lives behind the tap.
   return html`
     <div class="coach ${coachOpen ? 'open' : ''}">
       <button class="coach-head" data-act="coach" aria-expanded="${coachOpen ? 'true' : 'false'}">
-        <div class="coach-txt">
-          <div class="coach-k">Best next exercise</div>
-          <div class="coach-v">${headline}</div>
-          <div class="coach-s">${raw(sub)}</div>
-        </div>
+        <span class="coach-v">What to train today</span>
         <span class="coach-caret">${raw(coachOpen ? '&#9650;' : '&#9660;')}</span>
       </button>
       ${raw(coachOpen ? coachBody(picks, out) : '')}
     </div>`;
+}
+
+// The status line the closed header used to carry.
+function coachSummary(picks, out) {
+  const lead = picks.length ? `Start with <b>${picks[0].name}</b>` : '';
+  const state = !out.recentCount ? `Nothing logged in the last ${store.RECENT_DAYS} days`
+    : out.behind ? `${out.behind} of ${out.groups} groups behind &middot; ${fmt(out.gap)} sets to go`
+    : 'Nothing is behind for the next 24h';
+  return html`<div class="coach-sum">${raw(lead ? lead + ' &middot; ' : '')}${raw(state)}</div>`;
 }
 
 // Long lists get truncated: a header or a note is not a place to enumerate
@@ -159,6 +148,7 @@ function coachBody(picks, out) {
   }
 
   return html`<div class="coach-body">
+    ${raw(coachSummary(picks, out))}
     ${raw(picks.map((p, i) => html`
       <button class="sug" data-act="sug" data-n="${p.name}">
         <span class="sug-rank">${i + 1}</span>
@@ -309,20 +299,51 @@ export function mount(root, rerender) {
   // Field edits save on every keystroke but never re-render: rebuilding the DOM
   // under a focused cell drops the keyboard and would discard the value being
   // typed in the next field. Only the stats header needs refreshing.
+  // Tapping a number cell selects what's there, so typing replaces the value
+  // instead of appending to it. The delay is deliberate: mobile browsers move
+  // the caret after the focus handler runs, which would undo an immediate
+  // select().
+  root.addEventListener('focusin', e => {
+    const el = e.target;
+    if (el.classList && el.classList.contains('cell')) {
+      setTimeout(() => { try { el.select(); } catch { /* not selectable */ } }, 0);
+    }
+  });
+
   root.addEventListener('input', e => {
     const el = e.target.closest('[data-act-input]');
     if (!el) return;
     const kind = el.dataset.actInput;
     const i = Number(el.dataset.i), j = Number(el.dataset.s);
+    const carried = [];
     store.updateQuiet(st => {
       if (!st.active) return;
       const ex = st.active.exercises[i];
       if (!ex) return;
       if (kind === 'note') ex.notes = el.value;
-      if (kind === 'w') ex.sets[j].w = parseFloat(el.value) || 0;
       if (kind === 'r') ex.sets[j].r = parseInt(el.value, 10) || 0;
+      if (kind === 'w') {
+        ex.sets[j].w = parseFloat(el.value) || 0;
+        // Carry the weight down: you normally work a whole exercise at one
+        // load, so retyping it on every row is pure friction. Sets already
+        // ticked are a record of what you lifted and are left alone, and
+        // clearing the field carries nothing.
+        if (el.value !== '') {
+          for (let k = j + 1; k < ex.sets.length; k++) {
+            if (ex.sets[k].done) continue;
+            ex.sets[k].w = parseFloat(el.value) || 0;
+            carried.push(k);
+          }
+        }
+      }
     });
-    if (kind !== 'note') paintStats(root);
+    // Those rows are on screen already, so update them in place rather than
+    // re-rendering out from under the keyboard.
+    for (const k of carried) {
+      const other = root.querySelector(
+        `input[data-act-input="w"][data-i="${i}"][data-s="${k}"]`);
+      if (other && other !== el) other.value = el.value;
+    }
   });
 
   const q = root.querySelector('#q');
@@ -394,17 +415,6 @@ function addExercise(name) {
       : [{ w: 0, r: 0, done: false }];
     st.active.exercises.push({ name, notes: '', sets });
   });
-}
-
-// Refresh the volume/sets header in place after a keystroke.
-function paintStats(root) {
-  const a = store.get().active;
-  if (!a) return;
-  const v = store.volumeOf(a);
-  const vol = root.querySelector('#vol');
-  const n = root.querySelector('#nsets');
-  if (vol) vol.textContent = `${v.kg.toLocaleString()} kg`;
-  if (n) n.textContent = String(v.sets);
 }
 
 function startDurationTick(root) {
