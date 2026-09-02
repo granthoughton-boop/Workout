@@ -14,10 +14,13 @@ const ROUTES = {
   '/settings': { view: settings, tab: '/settings' },
 };
 
+// Emoji rather than glyphs, so every tab carries its own colour: the scales
+// and the heavy plus rendered near-grey next to the others, which made two of
+// the five read as disabled.
 const TABS = [
-  ['/home', '⚖️', 'Home'],
-  ['/log', '➕', 'Log'],
-  ['/muscles', '🎯', 'Muscles'],
+  ['/home', '🏠', 'Home'],
+  ['/log', '📝', 'Log'],
+  ['/muscles', '💪', 'Muscles'],
   ['/history', '📋', 'History'],
   ['/settings', '⚙️', 'Settings'],
 ];
