@@ -133,6 +133,26 @@ export function lastPerformance(name, excludeId) {
   return null;
 }
 
+// Every session that trained this exercise, newest first, with only the sets
+// actually completed - the same rule the rest of the history queries use.
+export function exerciseHistory(name) {
+  const out = [];
+  for (const w of state.workouts) {
+    const sets = [];
+    const notes = [];
+    for (const ex of w.exercises) {
+      if (ex.name !== name) continue;
+      sets.push(...completedSets(ex));
+      if (ex.notes) notes.push(ex.notes);
+    }
+    if (!sets.length) continue;
+    const kg = sets.reduce((a, x) => a + x.w * x.r, 0);
+    const top = sets.reduce((b, x) => (!b || x.w > b.w || (x.w === b.w && x.r > b.r) ? x : b), null);
+    out.push({ id: w.id, title: w.title, start: w.start, sets, top, kg: Math.round(kg), notes });
+  }
+  return out.reverse();
+}
+
 export function personalBest(name) {
   let best = null;
   for (const w of state.workouts) {
@@ -439,6 +459,14 @@ export function discardWorkout() {
 
 export function deleteWorkout(id) {
   update(s => { s.workouts = s.workouts.filter(w => w.id !== id); });
+}
+
+export function deleteSet(exIndex, setIndex) {
+  update(st => {
+    const ex = st.active && st.active.exercises[exIndex];
+    if (!ex) return;
+    ex.sets.splice(setIndex, 1);
+  });
 }
 
 export function volumeOf(workout) {

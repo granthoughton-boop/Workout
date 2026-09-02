@@ -1,10 +1,11 @@
 import * as store from '../store.js';
-import { html, raw, fmt, duration, clock, ago, onAct } from '../ui.js';
+import { html, raw, fmt, fmtDay, duration, clock, ago, onAct } from '../ui.js';
 
 let rest = null;      // { endsAt, total }
 let restTimerId = null;
 let picking = false;
 let coachOpen = false;
+let histFor = null;   // exercise name whose history sheet is open
 let query = '';
 let rerenderRef = () => {};
 
@@ -37,7 +38,8 @@ export function view() {
       </div>
     </main>
     ${raw(rest ? restBar() : '')}
-    ${raw(picking ? picker() : '')}`;
+    ${raw(picking ? picker() : '')}
+    ${raw(histFor ? historySheet(histFor) : '')}`;
 }
 
 function idle(s) {
@@ -66,9 +68,9 @@ function exerciseBlock(ex, exIndex, workoutId) {
   const pb = store.personalBest(ex.name);
 
   return html`
-    <div class="ex">
+    <div class="ex" data-ex="${exIndex}">
       <div class="ex-head">
-        <span class="ex-name">${ex.name}</span>
+        <button class="ex-name" data-act="hist" data-n="${ex.name}">${ex.name}</button>
         <button class="ex-menu" data-act="rm-ex" data-i="${exIndex}" aria-label="Remove exercise">✕</button>
       </div>
       <input class="ex-note" data-act-input="note" data-i="${exIndex}" placeholder="Add notes here…" value="${ex.notes || ''}">
@@ -93,6 +95,7 @@ function exerciseBlock(ex, exIndex, workoutId) {
           }).join(''))}
         </tbody>
       </table>
+      ${raw(exIndex === 0 ? '<div class="swipe-hint">Swipe a row sideways to delete that set</div>' : '')}
       <button class="btn sm ghost" data-act="add-set" data-i="${exIndex}" style="width:100%;margin-top:8px">+ Add Set</button>
     </div>`;
 }
@@ -219,6 +222,43 @@ function picker() {
     </div>`;
 }
 
+// Everything logged for one exercise, newest first. It opens over the workout
+// rather than routing away, so back puts you straight back on the set you were
+// in the middle of.
+function historySheet(name) {
+  const sessions = store.exerciseHistory(name);
+  const pb = store.personalBest(name);
+  const totalSets = sessions.reduce((a, x) => a + x.sets.length, 0);
+
+  return html`
+    <div class="sheet">
+      <header>
+        <h2>${name}</h2>
+        <button class="btn sm ghost" data-act="close-hist">Close</button>
+      </header>
+      ${raw(sessions.length ? html`
+        <div class="stats">
+          <div><div class="k">Sessions</div><div class="v">${sessions.length}</div></div>
+          <div><div class="k">Sets</div><div class="v">${totalSets}</div></div>
+          <div><div class="k">Best set</div><div class="v accent">${raw(pb ? `${fmt(pb.w)}<span class="tiny"> kg × ${pb.r}</span>` : '—')}</div></div>
+        </div>` : '')}
+      <div class="body">
+        ${raw(sessions.length ? sessions.map(x => html`
+          <div class="xh">
+            <div class="spread">
+              <span class="xh-d">${fmtDay(x.start)}<span class="muted"> · ${ago(x.start)}</span></span>
+              <span class="xh-k">${x.sets.length} sets · ${x.kg.toLocaleString()} kg</span>
+            </div>
+            <div class="xh-sets">
+              ${raw(x.sets.map(st => html`<span class="xh-set ${pb && st.w >= pb.w && st.w > 0 ? 'best' : ''}">${fmt(st.w)}<i>kg</i> × ${st.r}</span>`).join(''))}
+            </div>
+            ${raw(x.notes.map(n => html`<div class="xh-note">${n}</div>`).join(''))}
+          </div>`).join('') : html`
+          <div class="empty">No completed sets of ${name} yet. Tick one and it shows up here.</div>`)}
+      </div>
+    </div>`;
+}
+
 /* ---------- behaviour ---------- */
 
 export function mount(root, rerender) {
@@ -248,7 +288,14 @@ export function mount(root, rerender) {
     discard: () => { if (confirm('Discard this workout? Nothing will be saved.')) { stopRest(); store.discardWorkout(); } },
     settings: () => { location.hash = '#/settings'; },
     coach: () => { coachOpen = !coachOpen; rerender(); },
-    sug: el => addOrExtend(el.dataset.n),
+    sug: el => {
+      // Collapse first: the panel has done its job the moment you pick, and
+      // leaving it open pushes the exercise you just added off the screen.
+      coachOpen = false;
+      revealExercise(addOrExtend(el.dataset.n));
+    },
+    hist: el => openHistory(el.dataset.n),
+    'close-hist': () => dismissHistory(),
     'add-ex': () => openPicker(),
     'close-pick': () => dismissPicker(),
     choose: el => addExercise(el.dataset.n),
@@ -346,6 +393,8 @@ export function mount(root, rerender) {
     }
   });
 
+  wireSwipe(root);
+
   const q = root.querySelector('#q');
   if (q) {
     q.focus();
@@ -360,6 +409,73 @@ export function mount(root, rerender) {
 
   if (s.active) startDurationTick(root);
   if (rest) paintRest();
+}
+
+// Swipe a set row sideways to delete it. The rows carry touch-action: pan-y,
+// so the browser keeps vertical scrolling for itself and hands us the
+// horizontal drag - which is what stops the list fighting the gesture.
+function wireSwipe(root) {
+  const COMMIT = 96;   // px of travel that deletes
+  const SLOP = 12;     // px before the gesture commits to an axis
+  let row = null, x0 = 0, y0 = 0, dx = 0, id = null, decided = false, swiped = false;
+
+  function reset() {
+    if (row) {
+      row.classList.remove('swiping', 'armed');
+      row.style.removeProperty('--dx');
+    }
+    row = null; dx = 0; id = null; decided = false;
+  }
+
+  root.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const tr = e.target.closest('table.sets tbody tr');
+    if (!tr) return;
+    // A drag inside the field you are editing is caret work, not a swipe.
+    if (e.target.closest('input') && document.activeElement === e.target) return;
+    row = tr; x0 = e.clientX; y0 = e.clientY; dx = 0; id = e.pointerId; decided = false;
+  });
+
+  root.addEventListener('pointermove', e => {
+    if (!row || e.pointerId !== id) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (!decided) {
+      if (Math.abs(mx) < SLOP && Math.abs(my) < SLOP) return;
+      // Vertical intent: drop the gesture and let the page scroll.
+      if (Math.abs(mx) < Math.abs(my) * 1.5) { reset(); return; }
+      decided = true;
+      row.classList.add('swiping');
+      try { row.setPointerCapture(id); } catch { /* capture is a nicety */ }
+    }
+    dx = mx;
+    row.style.setProperty('--dx', `${dx}px`);
+    row.classList.toggle('armed', Math.abs(dx) >= COMMIT);
+    e.preventDefault();
+  });
+
+  function end(e) {
+    if (!row || e.pointerId !== id) return;
+    const commit = decided && Math.abs(dx) >= COMMIT;
+    const target = row;
+    swiped = decided;
+    reset();
+    if (!commit) return;
+    const tick = target.querySelector('[data-act="tick"]');
+    if (!tick) return;
+    if (navigator.vibrate) navigator.vibrate(30);
+    store.deleteSet(Number(tick.dataset.i), Number(tick.dataset.s));
+  }
+
+  root.addEventListener('pointerup', end);
+  root.addEventListener('pointercancel', () => reset());
+
+  // A finished swipe must not also read as a tap on whatever sat under it.
+  root.addEventListener('click', e => {
+    if (!swiped) return;
+    swiped = false;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
 }
 
 // The picker is a full-screen sheet, so it gets its own history entry: the
@@ -379,6 +495,32 @@ function addOrExtend(name) {
     const last = sets[sets.length - 1];
     sets.push({ w: last ? last.w : 0, r: last ? last.r : 0, done: false });
   });
+  return existing;
+}
+
+// Scroll the exercise a suggestion just landed on into view and flash it. The
+// store update above has already re-rendered the screen, so this is querying
+// the fresh DOM, not the one the tap came from.
+function revealExercise(index) {
+  if (index === undefined || index === null) return;
+  const el = document.querySelector(`.ex[data-ex="${index}"]`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  el.classList.remove('flash');
+  void el.offsetWidth; // restart the animation if the same block is picked twice
+  el.classList.add('flash');
+}
+
+function openHistory(name) {
+  histFor = name;
+  history.pushState({ sheet: 'hist' }, '');
+  rerenderRef();
+}
+
+function dismissHistory() {
+  histFor = null;
+  rerenderRef();
+  if (history.state && history.state.sheet === 'hist') history.back();
 }
 
 function openPicker() {
@@ -399,6 +541,7 @@ function dismissPicker() {
 // Called by the router on popstate. Returns true when back was spent closing
 // the sheet, so the router leaves the route alone.
 export function handleBack() {
+  if (histFor) { histFor = null; return true; }
   if (!picking) return false;
   picking = false;
   return true;
@@ -407,6 +550,7 @@ export function handleBack() {
 function addExercise(name) {
   picking = false;
   if (history.state && history.state.sheet === 'picker') history.back();
+  let at = null;
   store.update(st => {
     if (!st.active) return;
     const prev = store.lastPerformance(name, st.active.id);
@@ -414,7 +558,9 @@ function addExercise(name) {
       ? prev.sets.map(p => ({ w: p.w, r: p.r, done: false }))
       : [{ w: 0, r: 0, done: false }];
     st.active.exercises.push({ name, notes: '', sets });
+    at = st.active.exercises.length - 1;
   });
+  return at;
 }
 
 function startDurationTick(root) {

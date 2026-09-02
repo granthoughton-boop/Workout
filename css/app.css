@@ -441,3 +441,50 @@ button.pill { padding: 9px 12px; min-height: 34px; }
   font-variant-numeric: tabular-nums;
 }
 .wk-foot { font-size: 11px; line-height: 1.45; color: #6b6b70; padding: 8px 0 2px; }
+
+/* ---------- exercise name as a way in ---------- */
+
+.ex-name { text-align: left; padding: 0; }
+.ex-name::after { content: ' ›'; color: var(--muted); font-weight: 400; }
+.ex-name:active { opacity: .6; }
+
+/* The block a suggestion just landed on, so the jump is visible rather than
+   leaving you to work out what moved. */
+.ex.flash { animation: flash 1.1s ease-out; }
+@keyframes flash {
+  from { background: rgba(47,124,246,.20); box-shadow: 0 0 0 8px rgba(47,124,246,.20); }
+  to { background: transparent; box-shadow: 0 0 0 8px transparent; }
+}
+
+/* ---------- swipe a set away ---------- */
+
+/* pan-y keeps vertical scrolling with the browser and gives us the sideways
+   drag; without it the browser claims the gesture and cancels the pointer
+   mid-swipe. It has to go on the cells and their contents, not just the row:
+   Blink does not honour touch-action on a table row, so a rule on <tr> alone
+   leaves the effective value at auto and the swipe dies on the second move. */
+table.sets, table.sets td, table.sets td * { touch-action: pan-y; }
+table.sets tbody td { transform: translateX(var(--dx, 0px)); transition: transform .18s ease; }
+table.sets tbody tr.swiping td { transition: none; background: var(--bg); }
+table.sets tbody tr.swiping.on td { background: var(--green-bg); }
+/* Revealed behind the row as it moves: dark red while dragging, full red once
+   letting go would actually delete. */
+table.sets tbody tr.swiping { background: #3a100c; }
+table.sets tbody tr.swiping.armed { background: var(--red); }
+
+.swipe-hint { font-size: 11px; color: #6b6b70; padding: 7px 2px 0; }
+
+/* ---------- one exercise's history ---------- */
+
+.xh { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.xh-d { font-size: 14px; font-weight: 500; }
+.xh-k { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.xh-sets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.xh-set {
+  font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
+  background: var(--surface-2); border-radius: 7px; padding: 5px 8px;
+}
+.xh-set i { font-style: normal; font-weight: 500; font-size: 11px; color: var(--muted); }
+.xh-set.best { background: #2a2408; color: var(--gold); }
+.xh-set.best i { color: #b9a233; }
+.xh-note { font-size: 12px; color: var(--muted); margin-top: 7px; }
