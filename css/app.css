@@ -539,3 +539,18 @@ table.sets tbody tr.swiping.armed { background: var(--red); }
   margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line);
 }
 .alert-txt { flex: 1; min-width: 0; }
+
+/* ---------- log header ---------- */
+
+/* Time / Exercises / Sets is the running state of the session, so it travels
+   with the bar above it rather than scrolling away behind the first exercise.
+   Sticking the wrapper rather than the two rows separately means the stats
+   never need to know how tall the bar is - which changes with the safe-area
+   inset and with the length of the workout title. */
+.stickyhead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+}
+.stickyhead .topbar { position: static; }

@@ -7,6 +7,12 @@ import { SEED_WORKOUTS } from './data/seed.js';
 const KEY = 'workout.v1';
 const listeners = new Set();
 
+// Declared up here rather than beside relocalise() below: load() runs during
+// module initialisation, so anything it reaches has to already be initialised.
+// A const further down the file is still in its temporal dead zone at that
+// point, and touching it throws before the app has rendered anything.
+const MAX_OFFSET = 15 * 60 * 60 * 1000; // no real zone is further out than this
+
 function blank() {
   return {
     version: 1,
@@ -33,7 +39,38 @@ function load() {
   } catch {
     s = blank();
   }
-  return applySeed({ ...blank(), ...s });
+  return applySeed(relocalise({ ...blank(), ...s }));
+}
+
+// Repairs workouts written before start/end were stamped in local time. Those
+// carry a UTC wall-clock reading, which is read back as local and lands the
+// session a whole UTC offset out - the wrong day in History, and an hours-long
+// duration on a workout that just started.
+//
+// It can be exact rather than a guess: the app's own workout ids are
+// 'w' + Date.now() from the moment the workout began, so the true start instant
+// is sitting in the id. Seeded ('seed-') and Hevy-imported ('imp-') workouts
+// were always written in local time and are not touched. Restamping a record
+// that is already correct is a no-op, so this is safe to run on every load.
+function relocalise(s) {
+  for (const w of [...(s.workouts || []), s.active].filter(Boolean)) {
+    const m = /^w(\d{10,})$/.exec(w.id || '');
+    if (!m) continue;
+    const began = Number(m[1]);
+    if (!Number.isFinite(began)) continue;
+
+    const trueStart = localStamp(new Date(began));
+    const drift = new Date(trueStart) - new Date(w.start);
+    // Under a minute is a record already in local time; beyond any real offset
+    // is something this has no business rewriting.
+    if (!(Math.abs(drift) >= 60000 && Math.abs(drift) <= MAX_OFFSET)) continue;
+
+    // The end moved by exactly the same amount, so the session keeps the
+    // duration it was actually logged with.
+    if (w.end) w.end = localStamp(new Date(new Date(w.end).getTime() + drift));
+    w.start = trueStart;
+  }
+  return s;
 }
 
 // The bundled history is re-issued whenever a fresh Hevy export is generated,
@@ -93,8 +130,9 @@ export function updateQuiet(fn) {
 }
 
 export function replaceState(next) {
-  // A backup restored from another device may predate the current export.
-  state = applySeed({ ...blank(), ...next });
+  // A backup restored from another device may predate the current export, and
+  // may also predate local-time stamping.
+  state = applySeed(relocalise({ ...blank(), ...next }));
   persist();
   listeners.forEach(l => l());
 }
@@ -305,6 +343,17 @@ export function goalHistory(weeks = 8, now = new Date()) {
 // lifts you have not touched in months is a reading list, not a prompt.
 export const RECENT_DAYS = 30;
 
+// Exercises with at least one completed set in the workout in progress. They
+// are done for today as far as the ranking is concerned.
+export function trainedInActive() {
+  const done = new Set();
+  if (!state.active) return done;
+  for (const ex of state.active.exercises) {
+    if (completedSets(ex).length) done.add(ex.name);
+  }
+  return done;
+}
+
 export function recentExercises(days = RECENT_DAYS, now = new Date()) {
   const cut = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   const seen = new Set();
@@ -327,7 +376,11 @@ export function suggestions(limit = 5, now = new Date()) {
   const byId = Object.fromEntries(vol.map(v => [v.id, v]));
 
   const recent = recentExercises(RECENT_DAYS, now);
-  const ranked = catalog().filter(ex => recent.has(ex.name)).map(ex => {
+  // Something already worked this session is not a suggestion: the sets are
+  // logged, the ranking has already counted them, and telling you to go and do
+  // the exercise you are standing at is noise.
+  const already = trainedInActive();
+  const ranked = catalog().filter(ex => recent.has(ex.name) && !already.has(ex.name)).map(ex => {
     let score = 0;
     let gain = 0;
     const parts = [];
@@ -383,6 +436,16 @@ export function todayKey(d = new Date()) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// Local wall-clock, no offset marker - the same shape the Hevy import and the
+// seed file write. It has to be local: a bare date-time string is parsed back
+// as local time, so stamping one with UTC (which toISOString does) reads back
+// as the workout having started your whole UTC offset ago. On UTC+10 a session
+// begun a minute ago showed as ten hours long.
+export function localStamp(d = new Date()) {
+  const p = n => String(n).padStart(2, '0');
+  return `${todayKey(d)}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 export function logWeight(kg, date = todayKey()) {
   update(s => {
     const rounded = Math.round(kg * 10) / 10;
@@ -426,7 +489,7 @@ export function startWorkout(title) {
     s.active = {
       id: 'w' + Date.now(),
       title: title || defaultTitle(),
-      start: new Date().toISOString().slice(0, 19),
+      start: localStamp(),
       end: null,
       exercises: [],
     };
@@ -448,7 +511,7 @@ export function finishWorkout() {
     w.exercises = w.exercises
       .map(e => ({ ...e, sets: e.sets.filter(x => x.done) }))
       .filter(e => e.sets.length);
-    w.end = new Date().toISOString().slice(0, 19);
+    w.end = localStamp();
     if (w.exercises.length) s.workouts.push(w);
     s.workouts.sort((a, b) => a.start.localeCompare(b.start));
     s.active = null;

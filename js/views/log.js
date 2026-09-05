@@ -19,15 +19,17 @@ export function view() {
   const v = store.volumeOf(w);
 
   return html`
-    <div class="topbar">
-      <h1>Log Workout<span class="sub">${w.title}</span></h1>
-      <button class="pill" data-act="rest-open">Rest ${clock(s.restSeconds)}</button>
-      <button class="btn primary sm" data-act="finish">Finish</button>
-    </div>
-    <div class="stats">
-      <div><div class="k">Time</div><div class="v accent" id="dur">${duration(w.start, null)}</div></div>
-      <div><div class="k">Exercises</div><div class="v">${v.exercises}</div></div>
-      <div><div class="k">Sets</div><div class="v">${v.sets}</div></div>
+    <div class="stickyhead">
+      <div class="topbar">
+        <h1>Log Workout<span class="sub">${w.title}</span></h1>
+        <button class="pill" data-act="rest-open">Rest ${clock(s.restSeconds)}</button>
+        <button class="btn primary sm" data-act="finish">Finish</button>
+      </div>
+      <div class="stats">
+        <div><div class="k">Time</div><div class="v accent" id="dur">${duration(w.start, null)}</div></div>
+        <div><div class="k">Exercises</div><div class="v">${v.exercises}</div></div>
+        <div><div class="k">Sets</div><div class="v">${v.sets}</div></div>
+      </div>
     </div>
     <main>
       ${raw(coach())}
@@ -146,9 +148,15 @@ function coachBody(picks, out) {
   }
 
   if (!picks.length && !out.uncovered.length) {
+    // "Nothing to suggest" has two quite different causes now, and reading the
+    // wrong one back would be misleading.
+    const done = store.trainedInActive().size;
     return html`<div class="coach-body">
-      <div class="coach-empty">Every group is on target for the next 24 hours. Anything you add now is
-      banked against later in the week.</div>
+      <div class="coach-empty">${raw(done && out.behind
+        ? `Everything in rotation that would close a gap is already in this session. Add an exercise
+           if you want more, or call it here.`
+        : `Every group is on target for the next 24 hours. Anything you add now is
+           banked against later in the week.`)}</div>
     </div>`;
   }
 
@@ -178,7 +186,8 @@ function coachBody(picks, out) {
         Rankings already assume that.
       </div>` : '')}
     <div class="coach-foot">Ranked by how much one set closes your biggest gaps, from the
-      ${out.recentCount} exercises you have trained in the last ${store.RECENT_DAYS} days. Tap to add.</div>
+      ${out.recentCount} exercises you have trained in the last ${store.RECENT_DAYS} days, minus
+      anything already worked in this session. Tap to add.</div>
   </div>`;
 }
 
