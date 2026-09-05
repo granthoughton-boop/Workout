@@ -60,7 +60,11 @@ for (const rel of [...SHIP].sort()) {
     : [from];
   for (const f of files.sort()) {
     if (!existsSync(f) || statSync(f).isDirectory()) continue;
-    if (stampTargets.includes(f)) continue; // they carry the hash, so cannot feed it
+    // The stamped files are read here while they still carry the __BUILD__
+    // placeholder - stamping happens below, after the digest - so they can feed
+    // the hash without chasing their own tail. They have to: a fix that lives
+    // only in sw.js would otherwise ship under the previous build id, and the
+    // number in Settings would say the update had not landed when it had.
     hash.update(rel + '\0');
     hash.update(readFileSync(f));
   }
