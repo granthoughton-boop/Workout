@@ -18,8 +18,15 @@ const SHELL = [
   './js/views/history.js', './js/views/settings.js',
 ];
 
+// cache: 'reload' on every precache request, because the browser's own HTTP
+// cache sits underneath this one. GitHub Pages serves with a ten minute
+// max-age, so a plain addAll here happily fills a brand new cache with the
+// *previous* build's files - the worker updates, the cache name changes, and
+// the app still runs the old code. Bypassing the HTTP cache is what makes an
+// install actually mean "fetch the deploy that just landed".
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  const fresh = SHELL.map(url => new Request(url, { cache: 'reload' }));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(fresh)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -38,10 +45,17 @@ function timeout(ms) {
   return new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
 }
 
+// Same reason as the install above: "network first" has to mean the network,
+// not a ten minute old copy the browser is still holding. no-cache still
+// revalidates, so an unchanged file comes back as a cheap 304.
+function fetchFresh(req) {
+  return fetch(req, { cache: 'no-cache' });
+}
+
 async function networkFirst(req) {
   // Kept as its own promise so a response that arrives after the timeout still
   // refreshes the cache for next launch.
-  const net = fetch(req).then(res => {
+  const net = fetchFresh(req).then(res => {
     if (res && res.ok) {
       const copy = res.clone();
       caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});

@@ -84,7 +84,27 @@ if (!window.SINGLE_FILE_BUILD && 'serviceWorker' in navigator) {
     reloading = true;
     location.reload();
   });
+  // updateViaCache: 'none' because the browser's HTTP cache otherwise answers
+  // its own update check: GitHub Pages serves sw.js with a ten minute max-age,
+  // so for ten minutes after a deploy the check fetches the *old* worker, finds
+  // it byte-identical, and concludes there is nothing to install. The update
+  // then lands whenever the app is next opened after that window, which reads
+  // as "the deploy didn't work".
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .then(reg => {
+        const check = () => { reg.update().catch(() => {}); };
+        check();
+        // Reopening the app is the moment a phone should notice a new build.
+        // Throttled, because this fires on every return to the screen and one
+        // conditional GET per minute is plenty.
+        let last = Date.now();
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden || Date.now() - last < 60000) return;
+          last = Date.now();
+          check();
+        });
+      })
+      .catch(() => {});
   });
 }
