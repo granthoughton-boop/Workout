@@ -28,6 +28,26 @@ export function fmtDay(iso) {
   return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+// Weekday and date, with the year only when it isn't this one - a history list
+// is mostly recent, and "2026" on every row is noise until it isn't.
+export function fmtDayFull(iso) {
+  const d = new Date(iso);
+  const opts = { weekday: 'short', day: 'numeric', month: 'short' };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString(undefined, opts);
+}
+
+// Rounded to the minute: how long a session took is a coarse number, and the
+// seconds only make the row harder to scan.
+export function shortDuration(startIso, endIso) {
+  if (!endIso) return '—';
+  const mins = Math.round((new Date(endIso) - new Date(startIso)) / 60000);
+  if (!Number.isFinite(mins) || mins <= 0) return '—';
+  const h = Math.floor(mins / 60);
+  if (!h) return `${mins}m`;
+  return mins % 60 ? `${h}h ${mins % 60}m` : `${h}h`;
+}
+
 export function ago(date) {
   const days = Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
   if (days <= 0) return 'today';

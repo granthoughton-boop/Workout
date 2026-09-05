@@ -12,6 +12,7 @@ const SHELL = [
   './icons/maskable-512.png', './icons/apple-touch-icon.png',
   './css/app.css',
   './js/app.js', './js/store.js', './js/ui.js', './js/version.js',
+  './js/alerts.js',
   './js/data/exercises.js', './js/data/seed.js',
   './js/views/home.js', './js/views/log.js', './js/views/muscles.js',
   './js/views/history.js', './js/views/settings.js',
@@ -92,4 +93,99 @@ self.addEventListener('fetch', e => {
   } else {
     e.respondWith(cacheFirst(req));
   }
+});
+
+/* ---------- rest-timer notifications ---------- */
+
+// The page schedules its own beep, but a backgrounded page cannot be trusted
+// to run a timer at all - iOS suspends it outright. The worker keeps its own
+// timer and turns it into a real notification, which is the banner at the top
+// of the phone and the sound that comes with it.
+//
+// A worker is killed once it goes idle, so the wait is held inside the message
+// event's waitUntil: the browser keeps the worker alive for as long as that
+// promise is pending, which covers a rest of a few minutes.
+
+// Scope-relative on purpose: the build's precache check reads every
+// dot-slash-prefixed string literal in this file as a file that has to ship,
+// and a URL carrying a hash route is not one of those.
+const LOG_URL = 'index.html#/log';
+
+let restCancel = null;
+
+self.addEventListener('message', e => {
+  const msg = e.data || {};
+  if (msg.type === 'rest-start') {
+    e.waitUntil(scheduleRest(msg.endsAt, msg.body));
+  } else if (msg.type === 'rest-cancel') {
+    // Called off - skipped, finished, or replaced by the next rest. Anything
+    // still on screen about it is stale.
+    clearRest();
+    e.waitUntil(closeRestNotifications());
+  } else if (msg.type === 'rest-done') {
+    // The page saw the rest out itself. Drop the worker's own timer, but leave
+    // any banner alone: it is the thing the user has not read yet.
+    clearRest();
+  }
+});
+
+function clearRest() {
+  if (restCancel) { restCancel(); restCancel = null; }
+}
+
+function scheduleRest(endsAt, body) {
+  clearRest();
+  const wait = Math.max(0, endsAt - Date.now());
+  return new Promise(resolve => {
+    const id = setTimeout(() => {
+      restCancel = null;
+      fireRest(body).then(resolve, resolve);
+    }, wait);
+    restCancel = () => { clearTimeout(id); resolve(); };
+  });
+}
+
+async function fireRest(body) {
+  const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+  // App on screen: it makes its own noise, and a banner over the set you are
+  // about to start is just something else to dismiss.
+  if (windows.some(c => c.visibilityState === 'visible')) {
+    for (const c of windows) c.postMessage({ type: 'rest-over' });
+    return;
+  }
+
+  try {
+    await self.registration.showNotification('Rest over', {
+      body: body || 'Time for your next set.',
+      tag: 'rest',
+      renotify: true,
+      silent: false,
+      vibrate: [200, 100, 200],
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+      data: { url: LOG_URL },
+    });
+  } catch {
+    // Permission not granted, or notifications unavailable on this platform.
+  }
+  for (const c of windows) c.postMessage({ type: 'rest-over' });
+}
+
+async function closeRestNotifications() {
+  try {
+    const open = await self.registration.getNotifications({ tag: 'rest' });
+    for (const n of open) n.close();
+  } catch { /* nothing to close */ }
+}
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of windows) {
+      if ('focus' in c) return c.focus();
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(LOG_URL);
+  })());
 });

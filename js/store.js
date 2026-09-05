@@ -18,6 +18,8 @@ function blank() {
     customMuscles: {},     // exercise name -> muscle fraction override
     customExercises: [],   // { name, muscles }
     restSeconds: 90,
+    restAlerts: true,      // sound + notification when a rest runs out
+    alertsAsked: false,    // notification permission has been asked for once
   };
 }
 

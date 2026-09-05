@@ -1,4 +1,5 @@
 import * as store from '../store.js';
+import * as alerts from '../alerts.js';
 import { MUSCLES } from '../data/exercises.js';
 import { VERSION_LABEL } from '../version.js';
 import { html, raw, fmt, onAct } from '../ui.js';
@@ -16,6 +17,7 @@ export function view() {
           <input class="cell" id="rest" type="number" step="15" min="0" max="600" value="${s.restSeconds}" style="width:110px">
           <span class="muted small">seconds between sets</span>
         </div>
+        ${raw(alertRows(s))}
       </div>
 
       <div class="card">
@@ -76,6 +78,33 @@ export function view() {
     </main>`;
 }
 
+// Whether the alert can actually reach you depends on a permission the phone
+// owns, so the row says what the current state really is rather than what the
+// setting hopes for.
+function alertRows(s) {
+  const perm = alerts.permission();
+  const on = !!s.restAlerts;
+  const status = !on ? 'Off — the rest timer finishes silently.'
+    : perm === 'granted' ? 'A beep and a banner at the top of the screen, even when you have switched away.'
+    : perm === 'denied' ? 'Beep only. Notifications are blocked for this app in your phone’s settings.'
+    : perm === 'unsupported' ? 'Beep only. This browser cannot show notifications.'
+    : 'Beep only so far. Allow notifications and the alert can also reach you with the app in the background.';
+
+  return html`
+    <div class="alert-row">
+      <div class="alert-txt">
+        <div class="mg-name">Alert when rest is up</div>
+        <div class="tiny muted" style="margin-top:3px">${status}</div>
+      </div>
+      <button class="btn sm ${on ? 'primary' : 'ghost'}" data-act="alerts-toggle">${on ? 'On' : 'Off'}</button>
+    </div>
+    ${raw(on && perm === 'default' ? html`
+      <button class="btn ghost sm" data-act="alerts-allow" style="width:100%;margin-top:10px">Allow notifications</button>` : '')}
+    ${raw(on ? html`
+      <button class="btn ghost sm" data-act="alerts-test" style="width:100%;margin-top:10px">Test in 5 seconds</button>
+      <div class="tiny muted" style="margin-top:6px">Tap Test, then switch away or lock the phone — the alert should still arrive.</div>` : '')}`;
+}
+
 export function mount(root, rerender) {
   const restInput = root.querySelector('#rest');
   restInput.addEventListener('change', () => {
@@ -103,6 +132,28 @@ export function mount(root, rerender) {
   });
 
   onAct(root, {
+    'alerts-toggle': async () => {
+      const next = !store.get().restAlerts;
+      // Asking here rather than at the first rest: this tap is the gesture the
+      // phone requires, and it is the moment the user has said they want this.
+      if (next && alerts.permission() === 'default') {
+        store.updateQuiet(st => { st.alertsAsked = true; });
+        await alerts.askPermission();
+      }
+      store.update(st => { st.restAlerts = next; });
+    },
+    'alerts-allow': async el => {
+      store.updateQuiet(st => { st.alertsAsked = true; });
+      el.textContent = 'Waiting for the phone…';
+      await alerts.askPermission();
+      rerender();
+    },
+    'alerts-test': el => {
+      const label = el.textContent;
+      alerts.scheduleRest(Date.now() + 5000, 'This is what a finished rest looks like.');
+      el.textContent = 'Alert in 5 seconds…';
+      setTimeout(() => { el.textContent = label; }, 6000);
+    },
     't-inc': el => bumpTarget(el.dataset.m, 1),
     't-dec': el => bumpTarget(el.dataset.m, -1),
     edit: el => { editing = editing === el.dataset.n ? null : el.dataset.n; rerender(); },

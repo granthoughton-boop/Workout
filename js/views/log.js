@@ -1,8 +1,10 @@
 import * as store from '../store.js';
+import * as alerts from '../alerts.js';
 import { html, raw, fmt, fmtDay, duration, clock, ago, onAct } from '../ui.js';
 
 let rest = null;      // { endsAt, total }
 let restTimerId = null;
+let restHidden = false; // the rest spent some of its time with the app off-screen
 let picking = false;
 let coachOpen = false;
 let histFor = null;   // exercise name whose history sheet is open
@@ -577,15 +579,37 @@ function startDurationTick(root) {
 function startRest() {
   const secs = store.get().restSeconds;
   rest = { endsAt: Date.now() + secs * 1000, total: secs };
+  restHidden = false;
   clearInterval(restTimerId);
   restTimerId = setInterval(paintRest, 250);
+  if (store.get().restAlerts) {
+    // Scheduled here rather than when the timer runs out: this call is inside
+    // the tap, which is the only place a phone lets audio start.
+    alerts.scheduleRest(rest.endsAt, `${clock(secs)} rest is up — next set.`);
+    askAlertsOnce();
+  }
   rerenderRef();
 }
 
-function stopRest() {
+// The first rest of the app's life is the moment to ask for notifications: the
+// question is inside a tap, which is the only kind a phone will accept, and
+// the answer is about to matter. Asked once, then never again from here.
+function askAlertsOnce() {
+  if (store.get().alertsAsked || alerts.permission() !== 'default') return;
+  store.updateQuiet(st => { st.alertsAsked = true; });
+  alerts.askPermission();
+}
+
+// keepAlert is for a rest that ran its course: the sound has happened and the
+// notification is the user's to dismiss. Everything else - Skip, Finish,
+// Discard, coming back to a rest that expired while you were away - is a
+// cancellation, and takes the stale banner with it.
+function stopRest({ keepAlert = false } = {}) {
   rest = null;
+  restHidden = false;
   clearInterval(restTimerId);
   restTimerId = null;
+  if (!keepAlert) alerts.cancelRest();
   rerenderRef();
 }
 
@@ -593,12 +617,34 @@ function paintRest() {
   if (!rest) return;
   const left = Math.round((rest.endsAt - Date.now()) / 1000);
   const t = document.querySelector('#rest-t');
-  const bar = document.querySelector('.rest-progress');
-  if (!t) return;
-  t.textContent = clock(Math.max(0, left));
-  if (bar) bar.style.width = `${Math.max(0, (left / rest.total) * 100).toFixed(1)}%`;
-  if (left <= 0) {
-    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-    stopRest();
+  if (t) {
+    t.textContent = clock(Math.max(0, left));
+    const bar = document.querySelector('.rest-progress');
+    if (bar) bar.style.width = `${Math.max(0, (left / rest.total) * 100).toFixed(1)}%`;
   }
+  if (left > 0) return;
+
+  // Coming back to a rest that ran out while you were elsewhere: the beep and
+  // the banner have already happened, so this only tidies the bar away.
+  const returning = restHidden && !document.hidden;
+  if (returning) {
+    stopRest();
+    return;
+  }
+  alerts.restEnded();
+  stopRest({ keepAlert: true });
 }
+
+// The bar lives on this screen, but the timer belongs to the session: it keeps
+// running while you are on another tab, and the countdown has to be caught up
+// the moment the app is looked at again, since a backgrounded page's timers are
+// throttled to minutes or stopped outright.
+document.addEventListener('visibilitychange', () => {
+  if (!rest) return;
+  if (document.hidden) restHidden = true;
+  else paintRest();
+});
+
+// The service worker got there first - the rest ended while the app was in the
+// background and it posted the notification.
+window.addEventListener('rest:over', () => { if (rest) stopRest({ keepAlert: true }); });

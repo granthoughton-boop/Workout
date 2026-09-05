@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { html, raw, fmt, fmtDay, duration, onAct } from '../ui.js';
+import { html, raw, fmt, fmtDayFull, shortDuration, onAct } from '../ui.js';
 
 let open = null;
 
@@ -14,34 +14,63 @@ export function view() {
   return html`
     <div class="topbar"><h1>History<span class="sub">${list.length} workouts · ${totals.sets} sets · ${Math.round(totals.kg / 1000)}t lifted</span></h1></div>
     <main>
-      ${raw(list.length ? list.map(w => {
-        const v = store.volumeOf(w);
-        const isOpen = open === w.id;
-        return html`
-          <div class="card">
-            <button class="hist" data-act="toggle" data-id="${w.id}">
-              <div class="spread">
-                <div><div class="t">${w.title}</div>
-                  <div class="d">${fmtDay(w.start)} · ${duration(w.start, w.end)} · ${v.sets} sets · ${v.kg.toLocaleString()} kg</div></div>
-                <span class="muted">${raw(isOpen ? '▴' : '▾')}</span>
-              </div>
-              ${raw(isOpen ? '' : `<div class="l">${w.exercises.map(e => `${e.sets.length}× ${e.name}`).join(' · ')}</div>`)}
-            </button>
-            ${raw(isOpen ? html`
-              <div style="margin-top:12px">
-                ${raw(w.exercises.map(e => html`
-                  <div class="mg">
-                    <div class="mg-name" style="color:var(--accent)">${e.name}</div>
-                    ${raw(e.notes ? `<div class="tiny muted" style="margin:3px 0">${e.notes}</div>` : '')}
-                    <div class="small muted" style="margin-top:5px">
-                      ${raw(e.sets.map(st => `${fmt(st.w)}kg × ${st.r}`).join('  ·  '))}
-                    </div>
-                  </div>`).join(''))}
-                <button class="btn ghost danger sm" data-act="del" data-id="${w.id}" style="width:100%;margin-top:12px">Delete workout</button>
-              </div>` : '')}
-          </div>`;
-      }).join('') : '<div class="empty">No workouts yet.</div>')}
+      ${raw(list.length ? html`
+        <div class="card hist-list">
+          ${raw(list.map(row).join(''))}
+        </div>` : '<div class="empty">No workouts yet.</div>')}
     </main>`;
+}
+
+// One line per session: when it was, how much of it there was. Everything else
+// is behind the caret, so a year of training scrolls as a list rather than as a
+// wall of exercise names.
+function row(w) {
+  const v = store.volumeOf(w);
+  const isOpen = open === w.id;
+  return html`
+    <div class="h-item ${isOpen ? 'open' : ''}">
+      <button class="h-row" data-act="toggle" data-id="${w.id}" aria-expanded="${isOpen ? 'true' : 'false'}">
+        <span class="h-day">${fmtDayFull(w.start)}</span>
+        <span class="h-meta">${v.sets} sets<i>·</i>${shortDuration(w.start, w.end)}</span>
+        <span class="h-caret">${raw(isOpen ? '&#9650;' : '&#9660;')}</span>
+      </button>
+      ${raw(isOpen ? detail(w, v) : '')}
+    </div>`;
+}
+
+function detail(w, v) {
+  const exercises = w.exercises
+    .map(e => ({ ...e, sets: e.sets.filter(x => x.done) }))
+    .filter(e => e.sets.length);
+
+  return html`
+    <div class="h-open">
+      <div class="h-sub">${w.title}<span class="muted"> · ${v.kg.toLocaleString()} kg</span></div>
+      ${raw(exercises.map(e => html`
+        <div class="h-ex">
+          <div class="h-ex-top">
+            <span class="h-ex-name">${e.name}</span>
+            <span class="h-ex-n">${e.sets.length} ${e.sets.length === 1 ? 'set' : 'sets'}</span>
+          </div>
+          <div class="h-sets">${raw(groupSets(e.sets).map(g => html`
+            <span class="h-set">${fmt(g.w)}<i>kg</i> × ${g.r}${raw(g.n > 1 ? `<b>×${g.n}</b>` : '')}</span>`).join(''))}</div>
+          ${raw(e.notes ? html`<div class="h-note">${e.notes}</div>` : '')}
+        </div>`).join(''))}
+      ${raw(exercises.length ? '' : '<div class="tiny muted">No completed sets in this session.</div>')}
+      <button class="btn ghost danger sm" data-act="del" data-id="${w.id}" style="width:100%;margin-top:12px">Delete workout</button>
+    </div>`;
+}
+
+// Straight sets are the normal case, so three identical rows read better as one
+// entry with a multiplier than as three chips saying the same thing.
+function groupSets(sets) {
+  const out = [];
+  for (const s of sets) {
+    const last = out[out.length - 1];
+    if (last && last.w === s.w && last.r === s.r) last.n++;
+    else out.push({ w: s.w, r: s.r, n: 1 });
+  }
+  return out;
 }
 
 export function mount(root) {

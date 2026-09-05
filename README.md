@@ -77,9 +77,35 @@ before it will offer to install.
   timer, running duration/volume/set totals.
 - **Muscles** — the weekly-volume screen. Rolling 7-day fractional set counts
   against a target per muscle group, with what's remaining.
-- **History** — every workout, expandable to per-set detail.
-- **Settings** — rest length, weekly targets, exercise→muscle mapping, JSON/CSV
-  import + export, and the build id at the bottom.
+- **History** — one row per session: weekday and date, sets, duration. Tapping a
+  row expands it into that workout's exercises, with straight sets collapsed to
+  `60kg × 10 ×3`.
+- **Settings** — rest length, rest alerts, weekly targets, exercise→muscle
+  mapping, JSON/CSV import + export, and the build id at the bottom.
+
+## Rest alerts
+
+When a rest runs out the app beeps and posts a notification, including when the
+phone has moved on to something else. Three parts have to line up for that:
+
+- The beep is **scheduled into the audio graph inside the tap** that starts the
+  rest, not fired by a timer at the end of it. A backgrounded page's timers are
+  throttled to minutes on Android, and audio can only ever start from a gesture.
+  A near-silent carrier tone runs for the length of the rest so the audio
+  context isn't suspended out from under the beep waiting at the end of it.
+- iOS suspends the audio context outright the moment the app is backgrounded, so
+  the **service worker** keeps its own timer and shows a real OS notification -
+  the banner at the top of the screen, and the system's own sound with it. The
+  wait is held inside the message event's `waitUntil`, which is what stops the
+  browser killing the idle worker before the rest is up.
+- Both can fire, so each records that it rang and the other stands down. If the
+  app is on screen when the rest ends, the worker skips the banner and lets the
+  page make the noise.
+
+Notifications need a permission the phone owns, so **Settings → Rest timer**
+says what the state actually is, offers the ask, and has a *Test in 5 seconds*
+button for checking it arrives with the phone locked. Without permission the
+alert degrades to the beep alone.
 
 ## Versioning
 
@@ -170,12 +196,13 @@ index.html            app shell
 icons/                generated PNG home-screen icons
 data/hevy-export.csv  source export for the seeded history
 manifest.webmanifest  PWA manifest
-sw.js                 cache-first service worker
+sw.js                 cache-first service worker + rest notifications
 css/app.css
 js/app.js             hash router + tab bar
 js/version.js         build id, stamped at deploy time
 js/store.js           state, persistence, weekly-volume + bodyweight maths
 js/ui.js              escaping/formatting helpers, delegated click binding
+js/alerts.js          rest-timer sound + notification permission
 js/data/exercises.js  muscle groups, targets, exercise→muscle fractions
 js/data/seed.js       generated workout history
 js/views/*.js         one module per screen: view() + mount()
