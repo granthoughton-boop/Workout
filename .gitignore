@@ -1,3 +1,7 @@
 node_modules/
 dist/
 _site/
+
+# Throwaway browser-test harnesses, written at the repo root so they can
+# resolve playwright from node_modules.
+/.*.mjs
