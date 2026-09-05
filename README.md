@@ -74,7 +74,10 @@ before it will offer to install.
 - **Log** — the active workout: a collapsible **what to train next** panel at the
   top, then per-exercise set tables with each set's previous performance,
   kg/reps cells, a tick to complete, a 🏅 on record sets, an auto-starting rest
-  timer, running duration/volume/set totals.
+  timer, running duration/volume/set totals. A weight typed into one set
+  carries down to the rest of that exercise; reps step down instead, one per
+  set, so 11 predicts 10 then 9. Sets already ticked are a record and neither
+  touches them.
 - **Muscles** — the weekly-volume screen. Rolling 7-day fractional set counts
   against a target per muscle group, with what's remaining.
 - **History** — one row per session: weekday and date, sets, duration. Tapping a

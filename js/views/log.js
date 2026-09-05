@@ -370,7 +370,26 @@ export function mount(root, rerender) {
       const ex = st.active.exercises[i];
       if (!ex) return;
       if (kind === 'note') ex.notes = el.value;
-      if (kind === 'r') ex.sets[j].r = parseInt(el.value, 10) || 0;
+      if (kind === 'r') {
+        const reps = parseInt(el.value, 10) || 0;
+        ex.sets[j].r = reps;
+        // Step the reps down: fatigue means later sets of the same exercise
+        // come in one rep short of the one before, so 11 on the first set
+        // predicts 10 then 9. Same rules as the weight below - ticked sets are
+        // a record and are left alone, and clearing the field carries nothing.
+        // A set of zero reps is not a set, so the ladder stops at 1.
+        if (el.value !== '' && reps > 0) {
+          let prev = reps;
+          for (let k = j + 1; k < ex.sets.length; k++) {
+            // A set already ticked keeps what was actually lifted, and the
+            // ladder carries on from that rather than from what it displaced.
+            if (ex.sets[k].done) { prev = ex.sets[k].r; continue; }
+            prev = Math.max(1, prev - 1);
+            ex.sets[k].r = prev;
+            carried.push({ k, kind: 'r', value: String(prev) });
+          }
+        }
+      }
       if (kind === 'w') {
         ex.sets[j].w = parseFloat(el.value) || 0;
         // Carry the weight down: you normally work a whole exercise at one
@@ -381,17 +400,17 @@ export function mount(root, rerender) {
           for (let k = j + 1; k < ex.sets.length; k++) {
             if (ex.sets[k].done) continue;
             ex.sets[k].w = parseFloat(el.value) || 0;
-            carried.push(k);
+            carried.push({ k, kind: 'w', value: el.value });
           }
         }
       }
     });
     // Those rows are on screen already, so update them in place rather than
     // re-rendering out from under the keyboard.
-    for (const k of carried) {
+    for (const { k, kind: field, value } of carried) {
       const other = root.querySelector(
-        `input[data-act-input="w"][data-i="${i}"][data-s="${k}"]`);
-      if (other && other !== el) other.value = el.value;
+        `input[data-act-input="${field}"][data-i="${i}"][data-s="${k}"]`);
+      if (other && other !== el) other.value = value;
     }
   });
 
