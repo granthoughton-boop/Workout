@@ -146,7 +146,7 @@ function chart(weights, days) {
     if (filtered.length >= 2) pts = filtered;
   }
 
-  const W = 320, H = 110, padL = 30, padR = 6, padT = 10, padB = 18;
+  const W = 320, H = 124, padL = 30, padR = 6, padT = 10, padB = 18;
   const xs = pts.map(p => new Date(p.date).getTime());
   const ys = pts.map(p => p.kg);
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
@@ -162,9 +162,17 @@ function chart(weights, days) {
   const area = `${line}L${px(x1).toFixed(1)},${py(y0).toFixed(1)}L${px(x0).toFixed(1)},${py(y0).toFixed(1)}Z`;
   const last = pts[pts.length - 1];
 
-  const ticks = [y1 - pad, y0 + pad].map(v =>
+  // Gridlines land on whole kilos - the smallest step that keeps the axis to
+  // about four bands - rather than wherever the data happened to start and
+  // end, so a label reads "78" and not "78.2". The scale still follows the
+  // data, so the lines sit inside the range instead of stretching it out.
+  const step = [1, 2, 5, 10, 20, 50].find(s => s >= (y1 - y0) / 4) || 100;
+  const levels = [];
+  for (let v = Math.ceil(y0 / step) * step; v <= y1; v += step) levels.push(Math.round(v));
+  if (!levels.length) levels.push(Math.round((y0 + y1) / 2));
+  const ticks = levels.map(v =>
     `<line class="grid" x1="${padL}" y1="${py(v).toFixed(1)}" x2="${W - padR}" y2="${py(v).toFixed(1)}"/>
-     <text x="0" y="${(py(v) + 3).toFixed(1)}">${fmt(v)}</text>`).join('');
+     <text x="0" y="${(py(v) + 3).toFixed(1)}">${v}</text>`).join('');
 
   return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
       aria-label="Bodyweight from ${fmtDate(pts[0].date)} to ${fmtDate(last.date)}">
