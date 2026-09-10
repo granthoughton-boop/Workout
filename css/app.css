@@ -222,6 +222,10 @@ col.c-tick { width: 50px; }
   border-radius: 10px; padding: 12px 14px; font-size: 16px;
 }
 .search:focus { outline: none; border-color: var(--accent); }
+/* The ranking rides at the top of the picker's list, inside the scroll: open,
+   it pushes the catalog down rather than squeezing it against the keyboard. */
+.pick-coach { padding: 12px 16px 4px; }
+.pick-coach .coach { margin-bottom: 8px; }
 .pick { display: block; width: 100%; text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--line); }
 .pick:active { background: var(--surface-2); }
 .pick .n { font-size: 16px; }

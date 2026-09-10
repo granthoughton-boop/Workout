@@ -7,6 +7,8 @@ let restTimerId = null;
 let restHidden = false; // the rest spent some of its time with the app off-screen
 let picking = false;
 let coachOpen = false;
+let pickCoachOpen = true;  // the ranking inside the Add Exercise sheet
+let focusSearch = false;   // autofocus the search once per opening, not per render
 let histFor = null;   // exercise name whose history sheet is open
 let query = '';
 let rerenderRef = () => {};
@@ -32,7 +34,7 @@ export function view() {
       </div>
     </div>
     <main>
-      ${raw(coach())}
+      ${raw(coach({ open: coachOpen }))}
       ${raw(w.exercises.map((ex, i) => exerciseBlock(ex, i, w.id)).join(''))}
       ${raw(w.exercises.length ? '' : '<div class="empty">Add your first exercise to start logging.</div>')}
       <button class="btn primary" data-act="add-ex" style="margin:8px 0 14px">+ Add Exercise</button>
@@ -55,7 +57,7 @@ function idle(s) {
         <div class="small muted" style="margin-bottom:14px">No workout in progress</div>
         <button class="btn primary" data-act="start">+ Start empty workout</button>
       </div>
-      ${raw(coach())}
+      ${raw(coach({ open: coachOpen }))}
       ${raw(last ? html`
       <div class="card">
         <h2>Repeat last session</h2>
@@ -106,19 +108,18 @@ function exerciseBlock(ex, exIndex, workoutId) {
 
 // What to train next, ranked against the week as it will stand tomorrow.
 // Recomputed on every render, so ticking a set reorders it immediately.
-function coach() {
+function coach({ open = false, act = 'coach', inPicker = false } = {}) {
   const picks = store.suggestions(5);
   const out = store.weekOutlook();
-  const top = picks[0];
 
   // Closed, it says one thing. Every number lives behind the tap.
   return html`
-    <div class="coach ${coachOpen ? 'open' : ''}">
-      <button class="coach-head" data-act="coach" aria-expanded="${coachOpen ? 'true' : 'false'}">
+    <div class="coach ${open ? 'open' : ''}">
+      <button class="coach-head" data-act="${act}" aria-expanded="${open ? 'true' : 'false'}">
         <span class="coach-v">What to train today</span>
-        <span class="coach-caret">${raw(coachOpen ? '&#9650;' : '&#9660;')}</span>
+        <span class="coach-caret">${raw(open ? '&#9650;' : '&#9660;')}</span>
       </button>
-      ${raw(coachOpen ? coachBody(picks, out) : '')}
+      ${raw(open ? coachBody(picks, out, inPicker) : '')}
     </div>`;
 }
 
@@ -139,7 +140,7 @@ function namesOf(list, max = 3) {
   return rest > 0 ? `${shown} and ${rest} more` : shown;
 }
 
-function coachBody(picks, out) {
+function coachBody(picks, out, inPicker = false) {
   if (!out.recentCount) {
     return html`<div class="coach-body">
       <div class="coach-empty">Rankings come from the exercises you have trained in the last
@@ -177,7 +178,8 @@ function coachBody(picks, out) {
         <b>${raw(namesOf(out.uncovered))}</b>
         ${out.uncovered.length === 1 ? 'is' : 'are'} behind, but nothing you have trained in the last
         ${store.RECENT_DAYS} days works ${out.uncovered.length === 1 ? 'it' : 'them'}.
-        Use Add Exercise to bring ${out.uncovered.length === 1 ? 'it' : 'them'} back into rotation.
+        ${inPicker ? 'Search above' : 'Use Add Exercise'} to bring
+        ${out.uncovered.length === 1 ? 'it' : 'them'} back into rotation.
       </div>` : '')}
     ${raw(out.expiringTotal > 0 ? html`
       <div class="coach-note">
@@ -204,6 +206,13 @@ function restBar() {
     </div>`;
 }
 
+// Two ways in: the search box, and the same ranking the log screen shows,
+// sitting at the top of the list so adding an exercise can start from what is
+// behind rather than from a blank field. The ranking scrolls with the catalog
+// rather than sitting above the search, which keeps the field reachable when
+// the keyboard has taken half the screen. While a query is typed the ranking
+// gets out of the way - you have said what you are looking for, and the
+// matches belong at the top.
 function picker() {
   const q = query.trim().toLowerCase();
   const list = store.catalog().filter(e => !q || e.name.toLowerCase().includes(q));
@@ -218,6 +227,10 @@ function picker() {
         <input class="search" id="q" placeholder="Search ${store.catalog().length} exercises…" value="${query}" autocomplete="off">
       </div>
       <div class="body">
+        ${raw(q ? '' : html`
+          <div class="pick-coach">
+            ${raw(coach({ open: pickCoachOpen, act: 'coach-pick', inPicker: true }))}
+          </div>`)}
         ${raw(list.map(e => html`
           <button class="pick" data-act="choose" data-n="${e.name}">
             <div class="n">${e.name}</div>
@@ -299,10 +312,13 @@ export function mount(root, rerender) {
     discard: () => { if (confirm('Discard this workout? Nothing will be saved.')) { stopRest(); store.discardWorkout(); } },
     settings: () => { location.hash = '#/settings'; },
     coach: () => { coachOpen = !coachOpen; rerender(); },
+    'coach-pick': () => { pickCoachOpen = !pickCoachOpen; rerender(); },
     sug: el => {
       // Collapse first: the panel has done its job the moment you pick, and
       // leaving it open pushes the exercise you just added off the screen.
+      // Picked from inside the sheet, the sheet has done its job too.
       coachOpen = false;
+      closePicker();
       revealExercise(addOrExtend(el.dataset.n));
     },
     hist: el => openHistory(el.dataset.n),
@@ -425,9 +441,12 @@ export function mount(root, rerender) {
 
   wireSwipe(root);
 
+  // Focused when the sheet opens, but not on every re-render: toggling the
+  // ranking open would otherwise throw the keyboard back over what it just
+  // revealed. Typing keeps its own focus, restored at the end of the handler.
   const q = root.querySelector('#q');
   if (q) {
-    q.focus();
+    if (focusSearch) { focusSearch = false; q.focus(); }
     q.addEventListener('input', () => {
       query = q.value;
       const at = q.selectionStart;
@@ -556,16 +575,26 @@ function dismissHistory() {
 function openPicker() {
   picking = true;
   query = '';
+  focusSearch = true;
   history.pushState({ sheet: 'picker' }, '');
   rerenderRef();
 }
 
-function dismissPicker() {
+// Closing is guarded so the two paths that can both run in one tap - picking a
+// suggestion inside the sheet, then adding the exercise - only spend one back
+// entry between them. history.back() is asynchronous, so a second call would
+// still see the sheet's state and walk off the screen entirely.
+function closePicker() {
+  if (!picking) return;
   picking = false;
-  rerenderRef();
   // Consume the entry the sheet pushed so a later back doesn't spend a press
   // doing nothing visible.
   if (history.state && history.state.sheet === 'picker') history.back();
+}
+
+function dismissPicker() {
+  closePicker();
+  rerenderRef();
 }
 
 // Called by the router on popstate. Returns true when back was spent closing
@@ -578,8 +607,7 @@ export function handleBack() {
 }
 
 function addExercise(name) {
-  picking = false;
-  if (history.state && history.state.sheet === 'picker') history.back();
+  closePicker();
   let at = null;
   store.update(st => {
     if (!st.active) return;
