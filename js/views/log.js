@@ -8,7 +8,6 @@ let restHidden = false; // the rest spent some of its time with the app off-scre
 let picking = false;
 let coachOpen = false;
 let pickCoachOpen = true;  // the ranking inside the Add Exercise sheet
-let focusSearch = false;   // autofocus the search once per opening, not per render
 let histFor = null;   // exercise name whose history sheet is open
 let query = '';
 let rerenderRef = () => {};
@@ -441,12 +440,12 @@ export function mount(root, rerender) {
 
   wireSwipe(root);
 
-  // Focused when the sheet opens, but not on every re-render: toggling the
-  // ranking open would otherwise throw the keyboard back over what it just
-  // revealed. Typing keeps its own focus, restored at the end of the handler.
+  // The sheet opens with nothing focused. Focusing the search would raise the
+  // keyboard over the ranking sitting right below it, which is the first thing
+  // the sheet is there to show - tapping the field is the user's call. Typing
+  // keeps its own focus, restored at the end of the handler.
   const q = root.querySelector('#q');
   if (q) {
-    if (focusSearch) { focusSearch = false; q.focus(); }
     q.addEventListener('input', () => {
       query = q.value;
       const at = q.selectionStart;
@@ -575,7 +574,6 @@ function dismissHistory() {
 function openPicker() {
   picking = true;
   query = '';
-  focusSearch = true;
   history.pushState({ sheet: 'picker' }, '');
   rerenderRef();
 }
