@@ -8,6 +8,7 @@ let restHidden = false; // the rest spent some of its time with the app off-scre
 let picking = false;
 let coachOpen = false;
 let pickCoachOpen = true;  // the ranking inside the Add Exercise sheet
+let staleSeen = null; // id of a stale session whose banner has been dismissed
 let histFor = null;   // exercise name whose history sheet is open
 let query = '';
 let rerenderRef = () => {};
@@ -33,6 +34,7 @@ export function view() {
       </div>
     </div>
     <main>
+      ${raw(store.isStale(w) && staleSeen !== w.id ? staleBanner(w) : '')}
       ${raw(coach({ open: coachOpen }))}
       ${raw(w.exercises.map((ex, i) => exerciseBlock(ex, i, w.id)).join(''))}
       ${raw(w.exercises.length ? '' : '<div class="empty">Add your first exercise to start logging.</div>')}
@@ -66,6 +68,25 @@ function idle(s) {
       </div>` : '')}
       ${raw(picking ? picker() : '')}
     </main>`;
+}
+
+// Nothing else on this screen distinguishes a session started five minutes ago
+// from one left open since Thursday - and the difference matters, because the
+// sets you add now are filed under the day it began, both in History and in the
+// week's volume. Said once, with the two ways out, then dismissible.
+function staleBanner(w) {
+  const v = store.volumeOf(w);
+  return html`
+    <div class="stale">
+      <div class="stale-t">This session has been open for ${duration(w.start, null)}</div>
+      <div class="stale-b">It started ${fmtDay(w.start)}, so anything you log now counts as part of
+        that day, not today.</div>
+      <div class="stale-acts">
+        <button class="btn primary sm" data-act="fresh">${raw(v.sets
+          ? 'Finish &amp; start fresh' : 'Start fresh')}</button>
+        <button class="btn ghost sm" data-act="stale-keep">Keep logging</button>
+      </div>
+    </div>`;
 }
 
 function exerciseBlock(ex, exIndex, workoutId) {
@@ -309,6 +330,16 @@ export function mount(root, rerender) {
       }
     },
     discard: () => { if (confirm('Discard this workout? Nothing will be saved.')) { stopRest(); store.discardWorkout(); } },
+    // Completed sets are worth keeping even from a forgotten session, so they
+    // are filed rather than thrown away; a session with nothing ticked has
+    // nothing to file.
+    fresh: () => {
+      stopRest();
+      if (store.volumeOf(store.get().active).sets) store.finishWorkout();
+      else store.discardWorkout();
+      store.startWorkout();
+    },
+    'stale-keep': () => { staleSeen = store.get().active.id; rerender(); },
     settings: () => { location.hash = '#/settings'; },
     coach: () => { coachOpen = !coachOpen; rerender(); },
     'coach-pick': () => { pickCoachOpen = !pickCoachOpen; rerender(); },

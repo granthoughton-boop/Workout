@@ -484,6 +484,17 @@ export function weightStats() {
 
 /* ---------- workout lifecycle ---------- */
 
+// A workout that has been open for hours is not a long workout - it is one
+// somebody forgot to finish, and everything logged into it afterwards gets
+// filed under the day it began. Six hours is past any real session and short
+// enough to catch one left open overnight.
+export const STALE_HOURS = 6;
+
+export function isStale(w, now = Date.now()) {
+  if (!w || !w.start) return false;
+  return now - new Date(w.start).getTime() > STALE_HOURS * 60 * 60 * 1000;
+}
+
 export function startWorkout(title) {
   update(s => {
     s.active = {
@@ -511,7 +522,10 @@ export function finishWorkout() {
     w.exercises = w.exercises
       .map(e => ({ ...e, sets: e.sets.filter(x => x.done) }))
       .filter(e => e.sets.length);
-    w.end = localStamp();
+    // Pressing Finish on a session that began days ago says when you noticed
+    // it, not when you stopped training, and stamping it writes a hundred-hour
+    // workout into history. The honest record is that the end is unknown.
+    w.end = isStale(w) ? null : localStamp();
     if (w.exercises.length) s.workouts.push(w);
     s.workouts.sort((a, b) => a.start.localeCompare(b.start));
     s.active = null;

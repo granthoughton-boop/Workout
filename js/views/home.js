@@ -1,5 +1,5 @@
 import * as store from '../store.js';
-import { html, raw, fmt, fmtDate, ago, duration, onAct } from '../ui.js';
+import { html, raw, fmt, fmtDate, ago, shortDuration, onAct } from '../ui.js';
 
 let range = 90;          // days shown on the chart
 let weeksOpen = false;   // "This week" row expanded to the previous 8 weeks
@@ -71,7 +71,7 @@ export function view() {
           const v = store.volumeOf(w);
           return html`<div class="mg"><div class="spread">
             <div><div class="mg-name">${w.title}</div>
-            <div class="tiny muted">${fmtDate(w.start)} · ${duration(w.start, w.end)}</div></div>
+            <div class="tiny muted">${fmtDate(w.start)} · ${shortDuration(w.start, w.end)}</div></div>
             <div class="mg-num"><b>${v.sets}</b> sets<br><span class="tiny">${v.kg.toLocaleString()} kg</span></div>
           </div></div>`;
         }).join('') : '<div class="empty">No workouts logged yet.</div>')}

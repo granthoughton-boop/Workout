@@ -318,6 +318,20 @@ button.pill { padding: 9px 12px; min-height: 34px; }
 }
 .version b { color: #6b6b70; font-weight: 600; }
 
+/* A session left open for hours. It has to read as a question to answer, not
+   as a stat, so it sits above everything with the two ways out on it. */
+.stale {
+  background: #23180a;
+  border: 1px solid #5a4420;
+  border-radius: var(--radius);
+  padding: 13px 14px;
+  margin-bottom: 14px;
+}
+.stale-t { font-size: 14px; font-weight: 600; color: #ffd60a; }
+.stale-b { font-size: 12.5px; line-height: 1.45; color: var(--muted); margin-top: 4px; }
+.stale-acts { display: flex; gap: 8px; margin-top: 11px; }
+.stale-acts .btn { flex: 1; }
+
 /* ---------- what to train next ---------- */
 
 .coach {
