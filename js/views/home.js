@@ -45,6 +45,7 @@ export function view() {
           <h2 style="margin:0">Weight trend</h2>
           ${raw(stats ? html`<span class="pill">${fmt(stats.min)}–${fmt(stats.max)} kg</span>` : '')}
         </div>
+        <div class="tiny muted">7-day rolling average</div>
         ${raw(chart(s.weights, range))}
         <div class="chips">
           ${[30, 90, 365, 0].map(d => html`<button class="${range === d ? 'on' : ''}" data-act="range" data-d="${d}">${d ? d + 'd' : 'All'}</button>`)}
@@ -132,17 +133,32 @@ function weekLabel(w) {
   return f.formatRange ? f.formatRange(from, to) : `${f.format(from)} – ${f.format(to)}`;
 }
 
+// Each weigh-in replaced by the mean of every weigh-in in the seven days
+// ending on it. Averaged over the full history before the range is cut, so
+// the first point on a 30-day chart still has its previous week behind it
+// rather than starting from a single noisy reading.
+const DAY = 86400000;
+function rollingAvg(weights, window = 7) {
+  const ts = weights.map(w => Date.parse(w.date));
+  let from = 0, sum = 0;
+  return weights.map((w, i) => {
+    sum += w.kg;
+    while (ts[i] - ts[from] >= window * DAY) sum -= weights[from++].kg;
+    return { date: w.date, kg: sum / (i - from + 1) };
+  });
+}
+
 // Inline SVG sparkline - no chart library, scales to the card width via viewBox.
 function chart(weights, days) {
   if (weights.length < 2) {
     return '<div class="empty">Log your weight on two different days to see a trend.</div>';
   }
-  let pts = weights;
+  let pts = rollingAvg(weights);
   if (days) {
     const cut = new Date();
     cut.setDate(cut.getDate() - days);
     const key = store.todayKey(cut);
-    const filtered = weights.filter(w => w.date >= key);
+    const filtered = pts.filter(w => w.date >= key);
     if (filtered.length >= 2) pts = filtered;
   }
 
@@ -175,7 +191,7 @@ function chart(weights, days) {
      <text x="0" y="${(py(v) + 3).toFixed(1)}">${v}</text>`).join('');
 
   return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
-      aria-label="Bodyweight from ${fmtDate(pts[0].date)} to ${fmtDate(last.date)}">
+      aria-label="7-day average bodyweight from ${fmtDate(pts[0].date)} to ${fmtDate(last.date)}">
     ${ticks}
     <path class="area" d="${area}"/>
     <path class="line" d="${line}"/>
